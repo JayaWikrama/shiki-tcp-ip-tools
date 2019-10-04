@@ -1,3 +1,11 @@
+/*
+    lib info    : SHIKI_LIB_GROUP - TCP_IP
+    ver         : 1.01.19.10.03.18
+    author      : Jaya Wikrama, S.T.
+    e-mail      : jayawikrama89@gmail.com
+    Copyright (c) 2019 HANA,. Jaya Wikrama
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -15,28 +23,32 @@
 #define MAX_BUFF_LEN 80
 #define SA struct sockaddr
 
+int debug_mode_status = 1;
+
 static void stcp_debug(const char *function_name, char *debug_type, char *debug_msg, ...);
 
 static void stcp_debug(const char *function_name, char *debug_type, char *debug_msg, ...){
-	time_t debug_time;
-	struct tm *d_tm;
-	char time_str[25];
-	va_list aptr;
+	if (debug_mode_status == 1){
+        time_t debug_time;
+	    struct tm *d_tm;
+	    char time_str[25];
+	    va_list aptr;
 		
-	time(&debug_time);
-	d_tm = localtime(&debug_time);
-	memset(time_str, 0x00, 25*sizeof(char));
-	sprintf(time_str, "%d-%d-%d %d:%d:%d", d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec);
+	    time(&debug_time);
+	    d_tm = localtime(&debug_time);
+	    memset(time_str, 0x00, 25*sizeof(char));
+	    sprintf(time_str, "%02d-%02d-%04d %02d:%02d:%02d", d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec);
 	
-	char tmp_debug_msg[100];
-	va_start(aptr, debug_msg);
-	vsprintf(tmp_debug_msg, debug_msg, aptr);
-	va_end(aptr);
+	    char tmp_debug_msg[100];
+	    va_start(aptr, debug_msg);
+	    vsprintf(tmp_debug_msg, debug_msg, aptr);
+	    va_end(aptr);
 	
-	printf("%s %s: %s: %s", time_str, debug_type, function_name, tmp_debug_msg);
+	    printf("%s %s: %s: %s", time_str, debug_type, function_name, tmp_debug_msg);
+    }
 }
 
-struct stcp_sock_data stcp_server_init(char *ADDRESS, int PORT, int infinite_retry_mode){
+struct stcp_sock_data stcp_server_init(char *ADDRESS, int PORT, int infinite_retry_mode, int debug_mode){
     struct stcp_sock_data init_data;
     socklen_t len;
     int retval = 0;
@@ -87,10 +99,11 @@ struct stcp_sock_data stcp_server_init(char *ADDRESS, int PORT, int infinite_ret
             }
         }
     } while (retval < 0 && infinite_retry_mode == 1);
+    if(debug_mode == STCP_DEBUG_OFF || debug_mode == STCP_DEBUG_ON) debug_mode_status = debug_mode;
     return init_data;
 }
 
-struct stcp_sock_data stcp_client_init(char *ADDRESS, int PORT, int infinite_retry_mode){
+struct stcp_sock_data stcp_client_init(char *ADDRESS, int PORT, int infinite_retry_mode, int debug_mode){
     struct stcp_sock_data init_data;
     socklen_t len;
     int retval = 0;
@@ -118,19 +131,20 @@ struct stcp_sock_data stcp_client_init(char *ADDRESS, int PORT, int infinite_ret
 	        stcp_debug(__func__, "INFO", "connected to the server..\n");
         }
     } while (retval < 0 && infinite_retry_mode == 0);
+    if(debug_mode == STCP_DEBUG_OFF || debug_mode == STCP_DEBUG_ON) debug_mode_status = debug_mode;
     return init_data;
 }
 
-int stcp_send_data(struct stcp_sock_data com_data, char* buff){
+int stcp_send_data(struct stcp_sock_data com_data, char* buff, int size_set){
     int bytes;
-    bytes = write(com_data.connection_f, buff, sizeof(buff));
+    bytes = write(com_data.connection_f, buff, size_set*sizeof(char));
     stcp_debug(__func__, "INFO", "success to send %d data\n", bytes);
     return bytes;
 }
 
 int stcp_recv_data(struct stcp_sock_data com_data, char* buff, int size_set){
     int bytes;
-    bytes = read(com_data.connection_f, buff, size_set);
+    bytes = read(com_data.connection_f, buff, size_set*sizeof(char));
     stcp_debug(__func__, "INFO", "success to receive %d data\n", bytes);
     for (int i=0; i<bytes; i++){
         printf("%02X ", buff[i]);
