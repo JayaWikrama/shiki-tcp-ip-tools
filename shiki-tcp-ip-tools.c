@@ -25,11 +25,13 @@
 
 #include "shiki-tcp-ip-tools.h"
 
-#define MAX_BUFF_LEN 80
-#define SIZE_PER_RECV 128
 #define SA struct sockaddr
 
-int8_t debug_mode_status = 1;
+uint16_t SIZE_PER_RECV = 128;
+uint16_t time_out_in_seconds = 0;
+
+int8_t debug_mode_status = STCP_DEBUG_OFF;
+int8_t infinite_retry_mode = WITHOUT_RETRY;
 
 static void stcp_debug(const char *function_name, char *debug_type, char *debug_msg, ...);
 static int8_t stcp_check_ip(char *_ip_address);
@@ -97,7 +99,36 @@ static int8_t stcp_check_ip(char *_ip_address){
     return 0;
 }
 
-struct stcp_sock_data stcp_server_init(char *ADDRESS, uint16_t PORT, int8_t infinite_retry_mode, int8_t debug_mode){
+int8_t stcp_setup(stcp_setup_parameter _setup_parameter, int16_t _value){
+    if (_setup_parameter == STCP_SET_TIMEOUT){
+        time_out_in_seconds = (uint16_t)_value;
+    }
+    else if (_setup_parameter == STCP_SET_DEBUG_MODE){
+        if ((int8_t)_value == STCP_DEBUG_ON || (int8_t)_value == STCP_DEBUG_OFF){
+            debug_mode_status = (int8_t)_value;
+        }
+        else {
+            stcp_debug(__func__, "WARNING", "wrong value\n");
+        }
+    }
+    else if(_setup_parameter == STCP_SET_SIZE_PER_RECV){
+        SIZE_PER_RECV = (uint16_t) _value;
+    }
+    else if (_setup_parameter == STCP_SET_INFINITE_MODE_RETRY){
+        if ((int8_t)_value == INFINITE_RETRY || (int8_t)_value == WITHOUT_RETRY){
+            infinite_retry_mode = (int8_t)_value;
+        }
+        else {
+            stcp_debug(__func__, "WARNING", "wrong value\n");
+        }
+    }
+    else {
+        stcp_debug(__func__, "WARNING", "wrong parameters\n");
+    }
+    return 0;
+}
+
+struct stcp_sock_data stcp_server_init(char *ADDRESS, uint16_t PORT){
     struct stcp_sock_data init_data;
     socklen_t len;
     int8_t retval = 0;
@@ -127,6 +158,13 @@ struct stcp_sock_data stcp_server_init(char *ADDRESS, uint16_t PORT, int8_t infi
             }
             else {
                 servaddr.sin_addr.s_addr = inet_addr(ADDRESS);
+            }
+
+            if (time_out_in_seconds > 0){
+                struct timeval tv;
+                tv.tv_sec = time_out_in_seconds;
+                tv.tv_usec = 0;
+                setsockopt(init_data.socket_f, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
             }
 
             if ((bind(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr))) != 0) { 
@@ -160,12 +198,11 @@ struct stcp_sock_data stcp_server_init(char *ADDRESS, uint16_t PORT, int8_t infi
                 }
             }
         }
-    } while (retval < 0 && infinite_retry_mode == 1);
-    if(debug_mode == STCP_DEBUG_OFF || debug_mode == STCP_DEBUG_ON) debug_mode_status = debug_mode;
+    } while (retval < 0 && infinite_retry_mode == INFINITE_RETRY);
     return init_data;
 }
 
-struct stcp_sock_data stcp_client_init(char *ADDRESS, uint16_t PORT, int8_t infinite_retry_mode, int8_t debug_mode){
+struct stcp_sock_data stcp_client_init(char *ADDRESS, uint16_t PORT){
     struct stcp_sock_data init_data;
     int8_t retval = 0;
     struct sockaddr_in servaddr;
@@ -196,6 +233,13 @@ struct stcp_sock_data stcp_client_init(char *ADDRESS, uint16_t PORT, int8_t infi
             }
             else {
                 servaddr.sin_addr.s_addr = inet_addr(ADDRESS);
+            }
+
+            if (time_out_in_seconds > 0){
+                struct timeval tv;
+                tv.tv_sec = time_out_in_seconds;
+                tv.tv_usec = 0;
+                setsockopt(init_data.socket_f, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
             }
 
             stcp_debug(__func__, "INFO", "waiting for server...\n");
@@ -205,12 +249,11 @@ struct stcp_sock_data stcp_client_init(char *ADDRESS, uint16_t PORT, int8_t infi
             init_data.connection_f = init_data.socket_f;
 	        stcp_debug(__func__, "INFO", "connected to the server..\n");
         }
-    } while (retval < 0 && infinite_retry_mode == 0);
-    if(debug_mode == STCP_DEBUG_OFF || debug_mode == STCP_DEBUG_ON) debug_mode_status = debug_mode;
+    } while (retval < 0 && infinite_retry_mode == INFINITE_RETRY);
     return init_data;
 }
 
-struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT, int8_t infinite_retry_mode, int8_t debug_mode){
+struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
     struct stcp_sock_data init_data;
     int8_t retval = 0;
     struct sockaddr_in servaddr;
@@ -241,6 +284,13 @@ struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT, int8_t 
             }
             else {
                 servaddr.sin_addr.s_addr = inet_addr(ADDRESS);
+            }
+
+            if (time_out_in_seconds > 0){
+                struct timeval tv;
+                tv.tv_sec = time_out_in_seconds;
+                tv.tv_usec = 0;
+                setsockopt(init_data.socket_f, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
             }
 
             stcp_debug(__func__, "INFO", "waiting for server...\n");
@@ -270,36 +320,47 @@ struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT, int8_t 
 	        stcp_debug(__func__, "INFO", "connected to the server..\n");
             free(ssl_ctx);
         }
-    } while (retval < 0 && infinite_retry_mode == 0);
-    if(debug_mode == STCP_DEBUG_OFF || debug_mode == STCP_DEBUG_ON) debug_mode_status = debug_mode;
+    } while (retval < 0 && infinite_retry_mode == INFINITE_RETRY);
     return init_data;
 }
 
 int16_t stcp_send_data(struct stcp_sock_data com_data, char* buff, int16_t size_set){
     int16_t bytes;
     bytes = write(com_data.connection_f, buff, size_set*sizeof(char));
-    stcp_debug(__func__, "INFO", "success to send %d data\n", bytes);
+    if (bytes >= 0) stcp_debug(__func__, "INFO", "success to send %d data\n", bytes);
+    else if (time_out_in_seconds > 0){
+        stcp_debug(__func__, "WARNING", "send %d data. request timeout\n", bytes);
+    }
     return bytes;
 }
 
 int16_t stcp_recv_data(struct stcp_sock_data com_data, char* buff, int16_t size_set){
     int16_t bytes;
     bytes = read(com_data.connection_f, buff, size_set*sizeof(char));
-    stcp_debug(__func__, "INFO", "success to receive %d data\n", bytes);
+    if (bytes >= 0) stcp_debug(__func__, "INFO", "success to receive %d data\n", bytes);
+    else if (time_out_in_seconds > 0){
+        stcp_debug(__func__, "WARNING", "send %d data. request timeout\n", bytes);
+    }
     return bytes;
 }
 
 int16_t stcp_ssl_send_data(struct stcp_sock_data com_data, char* buff, int16_t size_set){
     int16_t bytes;
     bytes = SSL_write(com_data.ssl_connection_f, buff, size_set*sizeof(char));
-    stcp_debug(__func__, "INFO", "success to send %d data\n", bytes);
+    if (bytes >= 0) stcp_debug(__func__, "INFO", "success to send %d data\n", bytes);
+    else if (time_out_in_seconds > 0){
+        stcp_debug(__func__, "WARNING", "send %d data. request timeout\n", bytes);
+    }
     return bytes;
 }
 
 int16_t stcp_ssl_recv_data(struct stcp_sock_data com_data, char* buff, int16_t size_set){
     int16_t bytes;
     bytes = SSL_read(com_data.ssl_connection_f, buff, size_set*sizeof(char));
-    stcp_debug(__func__, "INFO", "success to receive %d data\n", bytes);
+    if (bytes >= 0) stcp_debug(__func__, "INFO", "success to receive %d data\n", bytes);
+    else if (time_out_in_seconds > 0){
+        stcp_debug(__func__, "WARNING", "send %d data. request timeout\n", bytes);
+    }
     return bytes;
 }
 
@@ -312,7 +373,7 @@ int8_t stcp_http_get(char *_host, uint16_t _port, char *_end_point, char *_heade
         stcp_debug(__func__, "ERROR", "failed to allocate memory\n");
         return -1;
     }
-    struct stcp_sock_data socket_f = stcp_client_init(_host, _port, WITHOUT_RETRY, STCP_DEBUG_ON);
+    struct stcp_sock_data socket_f = stcp_client_init(_host, _port);
     if (_header != NULL && _content != NULL){
         sprintf(message_request,
          "GET /%s HTTP/1.1\r\n"
@@ -346,7 +407,9 @@ int8_t stcp_http_get(char *_host, uint16_t _port, char *_end_point, char *_heade
         );
     }
     stcp_debug(__func__, "INFO", "HTTP Request:\n");
-    printf("%s\n", message_request);
+    if (debug_mode_status == STCP_DEBUG_ON){
+        printf("%s\n", message_request);
+    }
     stcp_send_data(socket_f, message_request, strlen(message_request));
     int16_t bytes = 0;
     do {
@@ -378,7 +441,7 @@ int8_t stcp_http_post(char *_host, uint16_t _port, char *_end_point, char *_head
         stcp_debug(__func__, "ERROR", "failed to allocate memory\n");
         return -1;
     }
-    struct stcp_sock_data socket_f = stcp_client_init(_host, _port, WITHOUT_RETRY, STCP_DEBUG_ON);
+    struct stcp_sock_data socket_f = stcp_client_init(_host, _port);
     if (_header != NULL && _content != NULL){
         sprintf(message_request,
          "POST /%s HTTP/1.1\r\n"
@@ -412,7 +475,9 @@ int8_t stcp_http_post(char *_host, uint16_t _port, char *_end_point, char *_head
         );
     }
     stcp_debug(__func__, "INFO", "HTTP Request:\n");
-    printf("%s\n", message_request);
+    if (debug_mode_status == STCP_DEBUG_ON){
+        printf("%s\n", message_request);
+    }
     stcp_send_data(socket_f, message_request, strlen(message_request));
     int16_t bytes = 0;
     do {
@@ -444,7 +509,7 @@ int8_t stcp_https_get(char *_host, uint16_t _port, char *_end_point, char *_head
         stcp_debug(__func__, "ERROR", "failed to allocate memory\n");
         return -1;
     }
-    struct stcp_sock_data socket_f = stcp_ssl_client_init(_host, _port, WITHOUT_RETRY, STCP_DEBUG_ON);
+    struct stcp_sock_data socket_f = stcp_ssl_client_init(_host, _port);
     if (_header != NULL && _content != NULL){
         sprintf(message_request,
          "GET /%s HTTP/1.1\r\n"
@@ -478,7 +543,9 @@ int8_t stcp_https_get(char *_host, uint16_t _port, char *_end_point, char *_head
         );
     }
     stcp_debug(__func__, "INFO", "HTTP Request:\n");
-    printf("%s\n", message_request);
+    if (debug_mode_status == STCP_DEBUG_ON){
+        printf("%s\n", message_request);
+    }
     stcp_ssl_send_data(socket_f, message_request, strlen(message_request));
     int16_t bytes = 0;
     do {
@@ -510,7 +577,7 @@ int8_t stcp_https_post(char *_host, uint16_t _port, char *_end_point, char *_hea
         stcp_debug(__func__, "ERROR", "failed to allocate memory\n");
         return -1;
     }
-    struct stcp_sock_data socket_f = stcp_ssl_client_init(_host, _port, WITHOUT_RETRY, STCP_DEBUG_ON);
+    struct stcp_sock_data socket_f = stcp_ssl_client_init(_host, _port);
     if (_header != NULL && _content != NULL){
         sprintf(message_request,
          "POST /%s HTTP/1.1\r\n"
@@ -544,7 +611,9 @@ int8_t stcp_https_post(char *_host, uint16_t _port, char *_end_point, char *_hea
         );
     }
     stcp_debug(__func__, "INFO", "HTTP Request:\n");
-    printf("%s\n", message_request);
+    if (debug_mode_status == STCP_DEBUG_ON){
+        printf("%s\n", message_request);
+    }
     stcp_ssl_send_data(socket_f, message_request, strlen(message_request));
     int16_t bytes = 0;
     do {

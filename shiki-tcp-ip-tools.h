@@ -20,6 +20,16 @@ typedef enum {
   STCP_REQ_CONTENT_ONLY = 2
 } stcp_request_type;
 
+typedef enum{
+  STCP_SET_TIMEOUT = 0,
+  STCP_SET_DEBUG_MODE = 1,
+  STCP_SET_SIZE_PER_RECV = 2,
+  STCP_SET_INFINITE_MODE_RETRY = 3
+} stcp_setup_parameter;
+
+
+int8_t stcp_setup(stcp_setup_parameter _setup_parameter, int16_t _value);
+
 /*
   stcp_client_init
   stcp_server_init
@@ -30,9 +40,9 @@ typedef enum {
   infinite_retry_mode : fill with INFINITE_RETRY for infinite init purpose (end when init success)
   debug_mode : parameter for enable or disable debug information
 */
-struct stcp_sock_data stcp_client_init(char *ADDRESS, uint16_t PORT, int8_t infinite_retry_mode, int8_t debug_mode);
-struct stcp_sock_data stcp_server_init(char *ADDRESS, uint16_t PORT, int8_t infinite_retry_mode, int8_t debug_mode);
-struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT, int8_t infinite_retry_mode, int8_t debug_mode);
+struct stcp_sock_data stcp_client_init(char *ADDRESS, uint16_t PORT);
+struct stcp_sock_data stcp_server_init(char *ADDRESS, uint16_t PORT);
+struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT);
 /*
   stcp_send_data
   stcp_recv_data
