@@ -5,20 +5,23 @@
 #include "shiki-tcp-ip-tools.h"
 
 int main(){
-    stcp_setup(STCP_SET_TIMEOUT, 1);
+    stcp_setup(STCP_SET_TIMEOUT, 2);
     stcp_setup(STCP_SET_DEBUG_MODE, STCP_DEBUG_ON);
     stcp_setup(STCP_SET_SIZE_PER_RECV, 64);
 
+    printf("test http get:\n%s\n", stcp_http_get("45.64.98.206", 8181, "", NULL, NULL, STCP_REQ_HEADER_ONLY));
+    printf("test http get:\n%s\n", stcp_http_get("www.google.com", 80, "", NULL, NULL, STCP_REQ_HEADER_ONLY));
+    /*
     char host[] = "api.telegram.org";
     char header[] = "Content-Type: application/json";
     char end_point[] = "bot1007413403:AAHfALG30Bc4U0h_o1mNqUu-51AD105ggWU/sendMessage";
-    
-    printf("test http post:\n%s\n", stcp_http_post(host, 80, end_point, header,
+
+    printf("test http post:\n%s\n", stcp_http_post(host, 443, end_point, header,
      "{\"chat_id\": \"1030198712\", \"text\": \"Akhirnya jadi juga library stcp\"}",
      STCP_REQ_COMPLETE
     ));
     
-    printf("test http get:\n%s\n", stcp_http_get(host, 80, end_point, header,
+    printf("test http get:\n%s\n", stcp_http_get(host, 443, end_point, header,
      "{\"chat_id\": \"1030198712\", \"text\": \"Akhirnya jadi juga library stcp\"}",
      STCP_REQ_COMPLETE
     ));
@@ -28,10 +31,11 @@ int main(){
      STCP_REQ_COMPLETE
     ));
     
-    printf("test https get:\n%s\n", stcp_https_get(host, 80, end_point, header,
+    printf("test https get:\n%s\n", stcp_https_get(host, 443, end_point, header,
      "{\"chat_id\": \"1030198712\", \"text\": \"Akhirnya jadi juga library stcp\"}",
      STCP_REQ_COMPLETE
     ));
+    */
     return 0;
 }
 

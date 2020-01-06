@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 1.01.19.10.03.18
+    ver         : 1.02.20.01.01.06
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -243,8 +243,24 @@ struct stcp_sock_data stcp_client_init(char *ADDRESS, uint16_t PORT){
             }
 
             stcp_debug(__func__, "INFO", "waiting for server...\n");
-            while (connect(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr)) != 0) { 
-                sleep(1); 
+            if (time_out_in_seconds > 0){
+                uint16_t time_out_connect = 100;
+                int8_t retval = 0;
+                while ((retval = connect(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr))) != 0 && time_out_connect > 0) {
+                    usleep(1000);
+                    time_out_connect--;
+                    stcp_debug(__func__, "INFO", "timeout counter: %i\n", time_out_connect);
+                }
+                if (retval != 0){
+                    stcp_debug(__func__, "WARNING", "waiting for server timeout\n");
+                    stcp_close(&init_data);
+                    return init_data;
+                }
+            }
+            else {
+                while (connect(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr)) != 0) {
+                    sleep(1); 
+                }
             }
             init_data.connection_f = init_data.socket_f;
 	        stcp_debug(__func__, "INFO", "connected to the server..\n");
@@ -294,8 +310,24 @@ struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
             }
 
             stcp_debug(__func__, "INFO", "waiting for server...\n");
-            while (connect(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr)) != 0) { 
-                sleep(1); 
+            if (time_out_in_seconds > 0){
+                uint16_t time_out_connect = 100;
+                int8_t retval = 0;
+                while ((retval = connect(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr))) != 0 && time_out_connect > 0) {
+                    usleep(1000);
+                    time_out_connect--;
+                    stcp_debug(__func__, "INFO", "timeout counter: %i\n", time_out_connect);
+                }
+                if (retval != 0){
+                    stcp_debug(__func__, "WARNING", "waiting for server timeout\n");
+                    stcp_close(&init_data);
+                    return init_data;
+                }
+            }
+            else {
+                while (connect(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr)) != 0) {
+                    sleep(1); 
+                }
             }
             
             SSL_load_error_strings ();
@@ -742,6 +774,11 @@ static int16_t stcp_get_content_length(char *_text_source){
                 else if (_text_source[i + j] >= '0' && _text_source[i + j] <= '9'){
                     buff_data[j] = _text_source[i + j];
                 }
+            }
+        }
+        else if (i > 3){
+            if (_text_source[i-3] == '\r' && _text_source[i-2] == '\n' && _text_source[i-1] == '\r' && _text_source[i] == '\n'){
+                return (int16_t)(strlen(_text_source) - i + 1);
             }
         }
     }
