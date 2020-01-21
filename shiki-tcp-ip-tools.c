@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 1.02.20.01.01.06
+    ver         : 1.03.20.01.21.08
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -449,6 +449,7 @@ char *stcp_http_get(char *_host, uint16_t _port, char *_end_point, char *_header
     }
     stcp_send_data(socket_f, message_request, strlen(message_request));
     int16_t bytes = 0;
+    int16_t total_bytes = 0;
     do {
         char response_tmp[SIZE_PER_RECV + 1];
         memset(response_tmp, 0x00, SIZE_PER_RECV + 1);
@@ -460,8 +461,10 @@ char *stcp_http_get(char *_host, uint16_t _port, char *_end_point, char *_header
         else if (bytes == 0){
             break;
         }
-        response = (char *) realloc(response, bytes + (int) strlen(response));
-        strcat(response, response_tmp);
+        total_bytes = total_bytes + bytes;
+        response = (char *) realloc(response, total_bytes + 1);
+        memcpy(response + (total_bytes - bytes), response_tmp, bytes);
+        response[total_bytes] = 0x00;
     } while (bytes >= SIZE_PER_RECV);
     stcp_close(&socket_f);
     if (strlen(response) == 0){
@@ -532,6 +535,7 @@ char *stcp_http_post(char *_host, uint16_t _port, char *_end_point, char *_heade
     }
     stcp_send_data(socket_f, message_request, strlen(message_request));
     int16_t bytes = 0;
+    int16_t total_bytes = 0;
     do {
         char response_tmp[SIZE_PER_RECV + 1];
         memset(response_tmp, 0x00, SIZE_PER_RECV + 1);
@@ -543,8 +547,10 @@ char *stcp_http_post(char *_host, uint16_t _port, char *_end_point, char *_heade
         else if (bytes == 0){
             break;
         }
-        response = (char *) realloc(response, bytes + (int) strlen(response));
-        strcat(response, response_tmp);
+        total_bytes = total_bytes + bytes;
+        response = (char *) realloc(response, total_bytes + 1);
+        memcpy(response + (total_bytes - bytes), response_tmp, bytes);
+        response[total_bytes] = 0x00;
     } while (bytes >= SIZE_PER_RECV);
     stcp_close(&socket_f);
     if (strlen(response) == 0){
@@ -615,6 +621,7 @@ char *stcp_https_get(char *_host, uint16_t _port, char *_end_point, char *_heade
     }
     stcp_ssl_send_data(socket_f, message_request, strlen(message_request));
     int16_t bytes = 0;
+    int16_t total_bytes = 0;
     do {
         char response_tmp[SIZE_PER_RECV + 1];
         memset(response_tmp, 0x00, SIZE_PER_RECV + 1);
@@ -626,8 +633,10 @@ char *stcp_https_get(char *_host, uint16_t _port, char *_end_point, char *_heade
         else if (bytes == 0){
             break;
         }
-        response = (char *) realloc(response, bytes + (int) strlen(response));
-        strcat(response, response_tmp);
+        total_bytes = total_bytes + bytes;
+        response = (char *) realloc(response, total_bytes + 1);
+        memcpy(response + (total_bytes - bytes), response_tmp, bytes);
+        response[total_bytes] = 0x00;
     } while (bytes >= SIZE_PER_RECV);
     stcp_ssl_close(&socket_f);
     if (strlen(response) == 0){
@@ -698,6 +707,7 @@ char *stcp_https_post(char *_host, uint16_t _port, char *_end_point, char *_head
     }
     stcp_ssl_send_data(socket_f, message_request, strlen(message_request));
     int16_t bytes = 0;
+    int16_t total_bytes = 0;
     do {
         char response_tmp[SIZE_PER_RECV + 1];
         memset(response_tmp, 0x00, SIZE_PER_RECV + 1);
@@ -709,8 +719,10 @@ char *stcp_https_post(char *_host, uint16_t _port, char *_end_point, char *_head
         else if (bytes == 0){
             break;
         }
-        response = (char *) realloc(response, bytes + (int) strlen(response));
-        strcat(response, response_tmp);
+        total_bytes = total_bytes + bytes;
+        response = (char *) realloc(response, total_bytes + 1);
+        memcpy(response + (total_bytes - bytes), response_tmp, bytes);
+        response[total_bytes] = 0x00;
     } while (bytes >= SIZE_PER_RECV);
     stcp_ssl_close(&socket_f);
     if (strlen(response) == 0){
