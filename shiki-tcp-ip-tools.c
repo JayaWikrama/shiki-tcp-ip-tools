@@ -350,7 +350,7 @@ struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
             }
             init_data.connection_f = init_data.socket_f;
 	        stcp_debug(__func__, "INFO", "connected to the server..\n");
-            free(ssl_ctx);
+            SSL_CTX_free(ssl_ctx);
         }
     } while (retval < 0 && infinite_retry_mode == INFINITE_RETRY);
     return init_data;
@@ -755,12 +755,12 @@ void stcp_close(struct stcp_sock_data *init_data){
 
 void stcp_ssl_close(struct stcp_sock_data *init_data){
     if(init_data->socket_f == init_data->connection_f){
-        SSL_shutdown(init_data->ssl_connection_f);
+        free(init_data->ssl_connection_f);
         close(init_data->socket_f);
         init_data->socket_f = -1;
     }
     else{
-        SSL_shutdown(init_data->ssl_connection_f);
+        free(init_data->ssl_connection_f);
         close(init_data->connection_f);
         close(init_data->socket_f);
         init_data->connection_f = -1;
