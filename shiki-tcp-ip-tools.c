@@ -422,7 +422,8 @@ int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_poin
         uint16_t idx_char_url = 0;
         uint8_t idx_char_buff = 0;
         memset(buff, 0x00, 9*sizeof(char));
-
+        strcpy(_end_point, "");
+        memset(end_point, 0x00, 2*sizeof(char));
         if (strncmp(_url, "http://", 7) == 0){
             strcpy(_protocol, "http");
             *_port = 80;
@@ -443,7 +444,6 @@ int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_poin
         strcpy(_host, host);
         free(host);
         if (_url[idx_char_url] == 0x00){
-            strcpy(_end_point, "");
             free(end_point);
             free(buff);
             return 1;
@@ -460,8 +460,7 @@ int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_poin
             idx_char_url++;
         }
         memset(buff, 0x00, 9*sizeof(char));
-        if (_url[idx_char_url] == 0x00){
-            strcpy(_end_point, "");
+        if (_url[idx_char_url - 1] == 0x00){
             free(end_point);
             free(buff);
             return 1;
@@ -474,7 +473,9 @@ int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_poin
             idx_char_url++;
             idx_char_buff++;
         }
-        strcpy(_end_point, end_point);
+        if (strlen(end_point) > 0){
+            strcpy(_end_point, end_point);
+        }
         free(end_point);
         free(buff);
     }
@@ -517,7 +518,7 @@ char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_conte
         free(host);
         return NULL;
     }
-    protocol = (char *) malloc(9 * sizeof(char));
+    protocol = (char *) malloc(6 * sizeof(char));
     if (protocol == NULL){
         stcp_debug(__func__, "ERROR", "failed to allocate protocol variable memory\n");
         free(message_request);
