@@ -269,6 +269,7 @@ struct stcp_sock_data stcp_client_init(char *ADDRESS, uint16_t PORT){
     return init_data;
 }
 
+#ifdef _SSL_H_
 struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
     struct stcp_sock_data init_data;
     int8_t retval = 0;
@@ -355,6 +356,7 @@ struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
     } while (retval < 0 && infinite_retry_mode == INFINITE_RETRY);
     return init_data;
 }
+#endif
 
 int16_t stcp_send_data(struct stcp_sock_data com_data, char* buff, int16_t size_set){
     int16_t bytes;
@@ -376,6 +378,7 @@ int16_t stcp_recv_data(struct stcp_sock_data com_data, char* buff, int16_t size_
     return bytes;
 }
 
+#ifdef _SSL_H_
 int16_t stcp_ssl_send_data(struct stcp_sock_data com_data, char* buff, int16_t size_set){
     int16_t bytes;
     bytes = SSL_write(com_data.ssl_connection_f, buff, size_set*sizeof(char));
@@ -395,6 +398,7 @@ int16_t stcp_ssl_recv_data(struct stcp_sock_data com_data, char* buff, int16_t s
     }
     return bytes;
 }
+#endif
 
 int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_point, uint16_t *_port){
     if (strncmp(_url, "http://", 7) == 0 || strncmp(_url, "https://", 8) == 0){
@@ -561,7 +565,18 @@ char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_conte
         socket_f = stcp_client_init(host, port);
     }
     else {
-        socket_f = stcp_ssl_client_init(host, port);
+        #ifdef _SSL_H_
+            socket_f = stcp_ssl_client_init(host, port);
+        #else
+            printf("%s: you are using http secure request (https). please include SSL library.\n", __func__);
+            free(message_request);
+            free(host);
+            free(end_point);
+            free(protocol);
+            response = (char *) realloc(response, 17*sizeof(char));
+            strcpy(response, "no route to host");
+            return response;
+        #endif
     }
     if (socket_f.socket_f <= 0){
         free(message_request);
@@ -624,7 +639,10 @@ char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_conte
         stcp_send_data(socket_f, message_request, strlen(message_request));
     }
     else {
-        stcp_ssl_send_data(socket_f, message_request, strlen(message_request));
+        #ifdef _SSL_H_
+            stcp_ssl_send_data(socket_f, message_request, strlen(message_request));
+        #endif
+
     }
     free(message_request);
     free(host);
@@ -640,7 +658,9 @@ char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_conte
             bytes = stcp_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
         }
         else {
-            bytes = stcp_ssl_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
+            #ifdef _SSL_H_
+                bytes = stcp_ssl_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
+            #endif
         }
         if (bytes == -1){
             stcp_debug(__func__, "ERROR", "Lost Connection\n");
@@ -658,7 +678,9 @@ char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_conte
         stcp_close(&socket_f);
     }
     else {
-        stcp_ssl_close(&socket_f);
+        #ifdef _SSL_H_
+            stcp_ssl_close(&socket_f);
+        #endif
     }
     free(protocol);
     if (strlen(response) == 0){
@@ -689,6 +711,7 @@ void stcp_close(struct stcp_sock_data *init_data){
     }
 }
 
+#ifdef _SSL_H_
 void stcp_ssl_close(struct stcp_sock_data *init_data){
     if(init_data->socket_f == init_data->connection_f){
         free(init_data->ssl_connection_f);
@@ -703,6 +726,7 @@ void stcp_ssl_close(struct stcp_sock_data *init_data){
         init_data->socket_f = -1;
     }
 }
+#endif
 
 static int16_t stcp_get_content_length(char *_text_source){
     char buff_info[17];
