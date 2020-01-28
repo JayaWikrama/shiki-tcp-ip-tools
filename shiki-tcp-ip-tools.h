@@ -9,6 +9,8 @@
 #define STCP_DEBUG_ON 1
 #define STCP_DEBUG_OFF 0
 
+#define STCP_VER "2.00.20.01.28"
+
 struct stcp_sock_data{
   int socket_f, connection_f;
   SSL *ssl_connection_f;
