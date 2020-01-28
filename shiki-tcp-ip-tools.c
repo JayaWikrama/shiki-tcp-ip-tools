@@ -7,8 +7,7 @@
 
     Support     : tcp-ip client/server
                 : tcp-ip ssl client
-                : http get/post request
-                : https get/post request
+                : http request
 */
 
 #include <stdio.h>
@@ -17,7 +16,9 @@
 #include <stdarg.h>
 #include <time.h>
 #include <netdb.h> 
-#include <netinet/in.h>
+#ifdef __linux__
+    #include <netinet/in.h>
+#endif
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
