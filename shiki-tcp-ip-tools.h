@@ -61,10 +61,8 @@ int16_t stcp_recv_data(struct stcp_sock_data com_data, char* buff, int16_t size_
 int16_t stcp_ssl_send_data(struct stcp_sock_data com_data, char* buff, int16_t size_set);
 int16_t stcp_ssl_recv_data(struct stcp_sock_data com_data, char* buff, int16_t size_set);
 
-char *stcp_http_get(char *_host, uint16_t _port, char *_end_point, char *_header, char *_content, stcp_request_type _request_type);
-char *stcp_http_post(char *_host, uint16_t _port, char *_end_point, char *_header, char *_content, stcp_request_type _request_type);
-char *stcp_https_get(char *_host, uint16_t _port, char *_end_point, char *_header, char *_content, stcp_request_type _request_type);
-char *stcp_https_post(char *_host, uint16_t _port, char *_end_point, char *_header, char *_content, stcp_request_type _request_type);
+int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_point, uint16_t *_port);
+char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_content, stcp_request_type _request_type);
 
 void stcp_close(struct stcp_sock_data *init_data);
 void stcp_ssl_close(struct stcp_sock_data *init_data);

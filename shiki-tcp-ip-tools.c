@@ -396,236 +396,251 @@ int16_t stcp_ssl_recv_data(struct stcp_sock_data com_data, char* buff, int16_t s
     return bytes;
 }
 
-char *stcp_http_get(char *_host, uint16_t _port, char *_end_point, char *_header, char *_content, stcp_request_type _request_type){
-    char message_request[1024];
-    char *response = NULL;
-    response = (char *) malloc(2 * sizeof(char));
-    memset(response, 0x00, 2 * sizeof(char));
-    if (response == NULL){
-        stcp_debug(__func__, "ERROR", "failed to allocate memory\n");
-        return NULL;
-    }
-    struct stcp_sock_data socket_f = stcp_client_init(_host, _port);
-    if (socket_f.socket_f <= 0){
-        response = (char *) realloc(response, 17*sizeof(char));
-        strcpy(response, "no route to host");
-        return response;
-    }
-    if (_header != NULL && _content != NULL){
-        sprintf(message_request,
-         "GET /%s HTTP/1.1\r\n"
-         "Host: %s\r\n"
-         "%s\r\n"
-         "Content-Length: %d\r\n\r\n"
-         "%s\r\n\r\n",
-         _end_point,
-         _host,
-         _header,
-         (int16_t) strlen(_content),
-         _content
-        );
-    }
-    else if (_content == NULL && _header != NULL){
-        sprintf(message_request,
-         "GET /%s HTTP/1.1\r\n"
-         "Host: %s\r\n"
-         "%s\r\n\r\n",
-         _end_point,
-         _host,
-         _header
-        );
-    }
-    else if (_header == NULL){
-        sprintf(message_request,
-         "GET /%s HTTP/1.1\r\n"
-         "Host: %s\r\n\r\n",
-         _end_point,
-         _host
-        );
-    }
-    stcp_debug(__func__, "INFO", "HTTP Request:\n");
-    if (debug_mode_status == STCP_DEBUG_ON){
-        printf("%s\n", message_request);
-    }
-    stcp_send_data(socket_f, message_request, strlen(message_request));
-    int16_t bytes = 0;
-    int16_t total_bytes = 0;
-    do {
-        char response_tmp[SIZE_PER_RECV + 1];
-        memset(response_tmp, 0x00, SIZE_PER_RECV + 1);
-        bytes = stcp_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
-        if (bytes == -1){
-            stcp_debug(__func__, "ERROR", "Lost Connection\n");
-            break;
+int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_point, uint16_t *_port){
+    if (strncmp(_url, "http://", 7) == 0 || strncmp(_url, "https://", 8) == 0){
+        char *host;
+        char *end_point;
+        char *buff;
+        host = (char *) malloc(2*sizeof(char));
+        if (host == NULL){
+            stcp_debug(__func__, "ERROR", "failed to allocate host valriable memory\n");
+            return -1;
         }
-        else if (bytes == 0){
-            break;
+        end_point = (char *) malloc(2*sizeof(char));
+        if (end_point == NULL){
+            free(host);
+            stcp_debug(__func__, "ERROR", "failed to allocate end_point valriable memory\n");
+            return -1;
         }
-        total_bytes = total_bytes + bytes;
-        response = (char *) realloc(response, total_bytes + 1);
-        memcpy(response + (total_bytes - bytes), response_tmp, bytes);
-        response[total_bytes] = 0x00;
-    } while (bytes >= SIZE_PER_RECV);
-    stcp_close(&socket_f);
-    if (strlen(response) == 0){
-        if (time_out_in_seconds == 0){
-            response = (char *) realloc(response, 30*sizeof(char));
-            strcpy(response, "bad connection or bad request");
-            return response;
+        buff = (char *) malloc(9*sizeof(char));
+        if (buff == NULL){
+            free(host);
+            free(end_point);
+            stcp_debug(__func__, "ERROR", "failed to allocate buff valriable memory\n");
+            return -1;
+        }
+        uint16_t idx_char_url = 0;
+        uint8_t idx_char_buff = 0;
+        memset(buff, 0x00, 9*sizeof(char));
+
+        if (strncmp(_url, "http://", 7) == 0){
+            strcpy(_protocol, "http");
+            *_port = 80;
+            idx_char_url = 7;
         }
         else {
-            response = (char *) realloc(response, 16*sizeof(char));
-            strcpy(response, "request timeout");
-            return response;
+            strcpy(_protocol, "https");
+            *_port = 443;
+            idx_char_url = 8;
         }
+        while(_url[idx_char_url] != '/' && _url[idx_char_url] != ':' && _url[idx_char_url] != 0x00){
+            host = (char *) realloc(host, (idx_char_buff + 2)*sizeof(char));
+            host[idx_char_buff] = _url[idx_char_url];
+            host[idx_char_buff + 1] = 0x00;
+            idx_char_url++;
+            idx_char_buff++;
+        }
+        strcpy(_host, host);
+        free(host);
+        if (_url[idx_char_url] == 0x00){
+            strcpy(_end_point, "");
+            free(end_point);
+            free(buff);
+            return 1;
+        }
+        idx_char_url++;
+        idx_char_buff = 0;
+        if (_url[idx_char_url - 1] == ':'){
+            while(_url[idx_char_url] != '/' && _url[idx_char_url] != 0x00){
+                buff[idx_char_buff] = _url[idx_char_url];
+                idx_char_url++;
+                idx_char_buff++;
+            }
+            *_port = (uint16_t) atoi(buff);
+            idx_char_url++;
+        }
+        memset(buff, 0x00, 9*sizeof(char));
+        if (_url[idx_char_url] == 0x00){
+            strcpy(_end_point, "");
+            free(end_point);
+            free(buff);
+            return 1;
+        }
+        idx_char_buff = 0;
+        while(_url[idx_char_url] != 0x00){
+            end_point = (char *) realloc(end_point, (idx_char_buff + 2)*sizeof(char));
+            end_point[idx_char_buff] = _url[idx_char_url];
+            end_point[idx_char_buff + 1] = 0x00;
+            idx_char_url++;
+            idx_char_buff++;
+        }
+        strcpy(_end_point, end_point);
+        free(end_point);
+        free(buff);
     }
-    return stcp_select_request(response, _request_type);
+    else {
+        stcp_debug(__func__, "ERROR", "undefined protocol (http/https - select one)\n");
+        return -1;
+    }
+    return 0;
 }
 
-char *stcp_http_post(char *_host, uint16_t _port, char *_end_point, char *_header, char *_content, stcp_request_type _request_type){
-    char message_request[1024];
-    char *response = NULL;
-    response = (char *) malloc(2 * sizeof(char));
-    memset(response, 0x00, 2 * sizeof(char));
-    if (response == NULL){
-        stcp_debug(__func__, "ERROR", "failed to allocate memory\n");
+char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_content, stcp_request_type _request_type){
+    char *message_request;
+    char *host;
+    char *end_point;
+    char *response;
+    char *protocol;
+    uint16_t length_of_message = 0;
+    uint16_t port = 0;
+    length_of_message = strlen(_req_type) + strlen(
+     " / HTTP/1.1\r\n"
+     "Host: \r\n"
+     "\r\n"
+     "Content-Length: 00000\r\n\r\n"
+     "\r\n\r\n");
+    message_request = (char *) malloc((length_of_message + 1) * sizeof(char));
+    if (message_request == NULL){
+        stcp_debug(__func__, "ERROR", "failed to allocate message variable memory\n");
         return NULL;
     }
-    struct stcp_sock_data socket_f = stcp_client_init(_host, _port);
+    host = (char *) malloc(strlen(_url) * sizeof(char));
+    if (host == NULL){
+        stcp_debug(__func__, "ERROR", "failed to allocate host variable memory\n");
+        free(message_request);
+        return NULL;
+    }
+    end_point = (char *) malloc(strlen(_url) * sizeof(char));
+    if (end_point == NULL){
+        stcp_debug(__func__, "ERROR", "failed to allocate end_point variable memory\n");
+        free(message_request);
+        free(host);
+        return NULL;
+    }
+    protocol = (char *) malloc(9 * sizeof(char));
+    if (protocol == NULL){
+        stcp_debug(__func__, "ERROR", "failed to allocate protocol variable memory\n");
+        free(message_request);
+        free(host);
+        free(end_point);
+        return NULL;
+    }
+    response = (char *) malloc(2 * sizeof(char));
+    if (response == NULL){
+        stcp_debug(__func__, "ERROR", "failed to allocate response variable memory\n");
+        free(message_request);
+        free(host);
+        free(end_point);
+        free(protocol);
+        return NULL;
+    }
+    int8_t retval = stcp_url_parser(_url, host, protocol, end_point, &port);
+    if (retval == -1){
+        free(message_request);
+        free(host);
+        free(end_point);
+        free(protocol);
+        free(response);
+        return NULL;
+    }
+    stcp_debug(__func__, "INFO", "protocol: %s\n", protocol);
+    stcp_debug(__func__, "INFO", "host: %s\n", host);
+    stcp_debug(__func__, "INFO", "end point: %s\n", end_point);
+    stcp_debug(__func__, "INFO", "port: %d\n", port);
+    uint16_t length_tmp = 0;
+    length_tmp = strlen(host);
+    length_of_message = length_of_message + length_tmp;
+    host = (char *) realloc(host, (length_tmp + 1)*sizeof(char));
+    length_tmp = strlen(end_point);
+    length_of_message = length_of_message + length_tmp;
+    end_point = (char *) realloc(end_point, (length_tmp + 1)*sizeof(char));
+    
+    struct stcp_sock_data socket_f;
+    if (strcmp(protocol, "http")==0){
+        socket_f = stcp_client_init(host, port);
+    }
+    else {
+        socket_f = stcp_ssl_client_init(host, port);
+    }
     if (socket_f.socket_f <= 0){
+        free(message_request);
+        free(host);
+        free(end_point);
+        free(protocol);
         response = (char *) realloc(response, 17*sizeof(char));
         strcpy(response, "no route to host");
         return response;
     }
+
     if (_header != NULL && _content != NULL){
+        length_of_message = length_of_message + strlen(_header) + strlen(_content);
+        message_request = (char *) realloc(message_request, (length_of_message + 1)*sizeof(char));
+        memset(message_request, 0x00, (length_of_message + 1)*sizeof(char));
         sprintf(message_request,
-         "POST /%s HTTP/1.1\r\n"
+         "%s /%s HTTP/1.1\r\n"
          "Host: %s\r\n"
          "%s\r\n"
          "Content-Length: %d\r\n\r\n"
          "%s\r\n\r\n",
-         _end_point,
-         _host,
+         _req_type,
+         end_point,
+         host,
          _header,
          (int16_t) strlen(_content),
          _content
         );
     }
     else if (_content == NULL && _header != NULL){
+        length_of_message = length_of_message + strlen(_header);
+        message_request = (char *) realloc(message_request, (length_of_message + 1)*sizeof(char));
+        memset(message_request, 0x00, (length_of_message + 1)*sizeof(char));
         sprintf(message_request,
-         "POST /%s HTTP/1.1\r\n"
+         "%s /%s HTTP/1.1\r\n"
          "Host: %s\r\n"
          "%s\r\n\r\n",
-         _end_point,
-         _host,
+         _req_type,
+         end_point,
+         host,
          _header
         );
     }
     else if (_header == NULL){
+        message_request = (char *) realloc(message_request, (length_of_message + 1)*sizeof(char));
+        memset(message_request, 0x00, (length_of_message + 1)*sizeof(char));
         sprintf(message_request,
-         "POST /%s HTTP/1.1\r\n"
+         "%s /%s HTTP/1.1\r\n"
          "Host: %s\r\n\r\n",
-         _end_point,
-         _host
+         _req_type,
+         end_point,
+         host
         );
     }
     stcp_debug(__func__, "INFO", "HTTP Request:\n");
     if (debug_mode_status == STCP_DEBUG_ON){
         printf("%s\n", message_request);
     }
-    stcp_send_data(socket_f, message_request, strlen(message_request));
+    if (strcmp(protocol, "http") == 0){
+        stcp_send_data(socket_f, message_request, strlen(message_request));
+    }
+    else {
+        stcp_ssl_send_data(socket_f, message_request, strlen(message_request));
+    }
+    free(message_request);
+    free(host);
+    free(end_point);
+
     int16_t bytes = 0;
     int16_t total_bytes = 0;
+    memset(response, 0x00, 2 * sizeof(char));
     do {
         char response_tmp[SIZE_PER_RECV + 1];
         memset(response_tmp, 0x00, SIZE_PER_RECV + 1);
-        bytes = stcp_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
-        if (bytes == -1){
-            stcp_debug(__func__, "ERROR", "Lost Connection\n");
-            break;
-        }
-        else if (bytes == 0){
-            break;
-        }
-        total_bytes = total_bytes + bytes;
-        response = (char *) realloc(response, total_bytes + 1);
-        memcpy(response + (total_bytes - bytes), response_tmp, bytes);
-        response[total_bytes] = 0x00;
-    } while (bytes >= SIZE_PER_RECV);
-    stcp_close(&socket_f);
-    if (strlen(response) == 0){
-        if (time_out_in_seconds == 0){
-            response = (char *) realloc(response, 30*sizeof(char));
-            strcpy(response, "bad connection or bad request");
-            return response;
+        if (strcmp(protocol, "http") == 0){
+            bytes = stcp_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
         }
         else {
-            response = (char *) realloc(response, 16*sizeof(char));
-            strcpy(response, "request timeout");
-            return response;
+            bytes = stcp_ssl_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
         }
-    }
-    return stcp_select_request(response, _request_type);
-}
-
-char *stcp_https_get(char *_host, uint16_t _port, char *_end_point, char *_header, char *_content, stcp_request_type _request_type){
-    char message_request[1024];
-    char *response = NULL;
-    response = (char *) malloc(2 * sizeof(char));
-    memset(response, 0x00, 2 * sizeof(char));
-    if (response == NULL){
-        stcp_debug(__func__, "ERROR", "failed to allocate memory\n");
-        return NULL;
-    }
-    struct stcp_sock_data socket_f = stcp_ssl_client_init(_host, _port);
-    if (socket_f.socket_f <= 0){
-        response = (char *) realloc(response, 17*sizeof(char));
-        strcpy(response, "no route to host");
-        return response;
-    }
-    if (_header != NULL && _content != NULL){
-        sprintf(message_request,
-         "GET /%s HTTP/1.1\r\n"
-         "Host: %s\r\n"
-         "%s\r\n"
-         "Content-Length: %d\r\n\r\n"
-         "%s\r\n\r\n",
-         _end_point,
-         _host,
-         _header,
-         (int16_t) strlen(_content),
-         _content
-        );
-    }
-    else if (_content == NULL && _header != NULL){
-        sprintf(message_request,
-         "GET /%s HTTP/1.1\r\n"
-         "Host: %s\r\n"
-         "%s\r\n\r\n",
-         _end_point,
-         _host,
-         _header
-        );
-    }
-    else if (_header == NULL){
-        sprintf(message_request,
-         "GET /%s HTTP/1.1\r\n"
-         "Host: %s\r\n\r\n",
-         _end_point,
-         _host
-        );
-    }
-    stcp_debug(__func__, "INFO", "HTTP Request:\n");
-    if (debug_mode_status == STCP_DEBUG_ON){
-        printf("%s\n", message_request);
-    }
-    stcp_ssl_send_data(socket_f, message_request, strlen(message_request));
-    int16_t bytes = 0;
-    int16_t total_bytes = 0;
-    do {
-        char response_tmp[SIZE_PER_RECV + 1];
-        memset(response_tmp, 0x00, SIZE_PER_RECV + 1);
-        bytes = stcp_ssl_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
         if (bytes == -1){
             stcp_debug(__func__, "ERROR", "Lost Connection\n");
             break;
@@ -638,93 +653,13 @@ char *stcp_https_get(char *_host, uint16_t _port, char *_end_point, char *_heade
         memcpy(response + (total_bytes - bytes), response_tmp, bytes);
         response[total_bytes] = 0x00;
     } while (bytes >= SIZE_PER_RECV);
-    stcp_ssl_close(&socket_f);
-    if (strlen(response) == 0){
-        if (time_out_in_seconds == 0){
-            response = (char *) realloc(response, 30*sizeof(char));
-            strcpy(response, "bad connection or bad request");
-            return response;
-        }
-        else {
-            response = (char *) realloc(response, 16*sizeof(char));
-            strcpy(response, "request timeout");
-            return response;
-        }
+    if (strcmp(protocol, "http") == 0){
+        stcp_close(&socket_f);
     }
-    return stcp_select_request(response, _request_type);
-}
-
-char *stcp_https_post(char *_host, uint16_t _port, char *_end_point, char *_header, char *_content, stcp_request_type _request_type){
-    char message_request[1024];
-    char *response = NULL;
-    response = (char *) malloc(2 * sizeof(char));
-    memset(response, 0x00, 2 * sizeof(char));
-    if (response == NULL){
-        stcp_debug(__func__, "ERROR", "failed to allocate memory\n");
-        return NULL;
+    else {
+        stcp_ssl_close(&socket_f);
     }
-    struct stcp_sock_data socket_f = stcp_ssl_client_init(_host, _port);
-    if (socket_f.socket_f <= 0){
-        response = (char *) realloc(response, 17*sizeof(char));
-        strcpy(response, "no route to host");
-        return response;
-    }
-    if (_header != NULL && _content != NULL){
-        sprintf(message_request,
-         "POST /%s HTTP/1.1\r\n"
-         "Host: %s\r\n"
-         "%s\r\n"
-         "Content-Length: %d\r\n\r\n"
-         "%s\r\n\r\n",
-         _end_point,
-         _host,
-         _header,
-         (int16_t) strlen(_content),
-         _content
-        );
-    }
-    else if (_content == NULL && _header != NULL){
-        sprintf(message_request,
-         "POST /%s HTTP/1.1\r\n"
-         "Host: %s\r\n"
-         "%s\r\n\r\n",
-         _end_point,
-         _host,
-         _header
-        );
-    }
-    else if (_header == NULL){
-        sprintf(message_request,
-         "POST /%s HTTP/1.1\r\n"
-         "Host: %s\r\n\r\n",
-         _end_point,
-         _host
-        );
-    }
-    stcp_debug(__func__, "INFO", "HTTP Request:\n");
-    if (debug_mode_status == STCP_DEBUG_ON){
-        printf("%s\n", message_request);
-    }
-    stcp_ssl_send_data(socket_f, message_request, strlen(message_request));
-    int16_t bytes = 0;
-    int16_t total_bytes = 0;
-    do {
-        char response_tmp[SIZE_PER_RECV + 1];
-        memset(response_tmp, 0x00, SIZE_PER_RECV + 1);
-        bytes = stcp_ssl_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
-        if (bytes == -1){
-            stcp_debug(__func__, "ERROR", "Lost Connection\n");
-            break;
-        }
-        else if (bytes == 0){
-            break;
-        }
-        total_bytes = total_bytes + bytes;
-        response = (char *) realloc(response, total_bytes + 1);
-        memcpy(response + (total_bytes - bytes), response_tmp, bytes);
-        response[total_bytes] = 0x00;
-    } while (bytes >= SIZE_PER_RECV);
-    stcp_ssl_close(&socket_f);
+    free(protocol);
     if (strlen(response) == 0){
         if (time_out_in_seconds == 0){
             response = (char *) realloc(response, 30*sizeof(char));
