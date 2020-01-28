@@ -16,14 +16,13 @@
 #include <stdarg.h>
 #include <time.h>
 #include <netdb.h> 
-#ifdef __linux__
-    #include <netinet/in.h>
-#endif
+#include <netinet/in.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <arpa/inet.h>
-
+#ifdef __linux__
+    #include <arpa/inet.h>
+#endif
 #include "shiki-tcp-ip-tools.h"
 
 #define SA struct sockaddr
