@@ -1,9 +1,8 @@
 #ifndef __SHIKI_TCP_IP_TOOLS__
 #define __SHIKI_TCP_IP_TOOLS__
 
-#ifdef _SSL_H_
-  #include <openssl/ssl.h>
-#endif
+
+#include <openssl/ssl.h>
 #include <stdint.h>
 
 #define INFINITE_RETRY 1
@@ -11,19 +10,19 @@
 #define STCP_DEBUG_ON 1
 #define STCP_DEBUG_OFF 0
 
-#define STCP_VER "2.00.20.01.28"
+#define STCP_VER "2.01.20.02.01"
 
 struct stcp_sock_data{
   int socket_f, connection_f;
-  #ifdef _SSL_H_
-    SSL *ssl_connection_f;
-  #endif
+  SSL *ssl_connection_f;
 };
 
 typedef enum {
   STCP_REQ_COMPLETE = 0,
   STCP_REQ_HEADER_ONLY = 1,
-  STCP_REQ_CONTENT_ONLY = 2
+  STCP_REQ_CONTENT_ONLY = 2,
+  STCP_REQ_CONTENT_BLOCKING_BY_STATUS = 3,
+  STCP_REQ_HTTP_STATUS_ONLY = 4
 } stcp_request_type;
 
 typedef enum{
@@ -48,9 +47,7 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, int16_t _value);
 */
 struct stcp_sock_data stcp_client_init(char *ADDRESS, uint16_t PORT);
 struct stcp_sock_data stcp_server_init(char *ADDRESS, uint16_t PORT);
-#ifdef _SSL_H_
-  struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT);
-#endif
+struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT);
 /*
   stcp_send_data
   stcp_recv_data
@@ -66,10 +63,9 @@ struct stcp_sock_data stcp_server_init(char *ADDRESS, uint16_t PORT);
 */
 int16_t stcp_send_data(struct stcp_sock_data com_data, char* buff, int16_t size_set);
 int16_t stcp_recv_data(struct stcp_sock_data com_data, char* buff, int16_t size_set);
-#ifdef _SSL_H_
-  int16_t stcp_ssl_send_data(struct stcp_sock_data com_data, char* buff, int16_t size_set);
-  int16_t stcp_ssl_recv_data(struct stcp_sock_data com_data, char* buff, int16_t size_set);
-#endif
+
+int16_t stcp_ssl_send_data(struct stcp_sock_data com_data, char* buff, int16_t size_set);
+int16_t stcp_ssl_recv_data(struct stcp_sock_data com_data, char* buff, int16_t size_set);
 
 int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_point, uint16_t *_port);
 char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_content, stcp_request_type _request_type);

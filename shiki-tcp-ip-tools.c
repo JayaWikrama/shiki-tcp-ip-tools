@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 2.00.20.01.28
+    ver         : 2.01.20.02.01
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -47,12 +47,19 @@ static void stcp_debug(const char *function_name, char *debug_type, char *debug_
 	    time(&debug_time);
 	    d_tm = localtime(&debug_time);
 	
-	    char tmp_debug_msg[100];
+	    char* tmp_debug_msg;
+        tmp_debug_msg = (char *) malloc(256*sizeof(char));
+        if (tmp_debug_msg == NULL){
+            printf("%02d-%02d-%04d %02d:%02d:%02d ERROR: %s: failed to allocate debug variable memory",
+             d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec, __func__
+            );
+            return;
+        }
 	    va_start(aptr, debug_msg);
 	    vsprintf(tmp_debug_msg, debug_msg, aptr);
 	    va_end(aptr);
-	
 	    printf("%02d-%02d-%04d %02d:%02d:%02d %s: %s: %s", d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec, debug_type, function_name, tmp_debug_msg);
+        free(tmp_debug_msg);
     }
 }
 
@@ -148,7 +155,7 @@ struct stcp_sock_data stcp_server_init(char *ADDRESS, uint16_t PORT){
                 struct hostent *host;
                 host = gethostbyname(ADDRESS);
                 if (host != NULL){
-                    memcpy(&servaddr.sin_addr.s_addr,host->h_addr,host->h_length);
+                    servaddr.sin_addr.s_addr = inet_addr(inet_ntoa(*((struct in_addr*) host->h_addr_list[0])));
                 }
                 else {
                     stcp_debug(__func__, "ERROR", "failed to get host by name\n", ADDRESS);
@@ -223,7 +230,7 @@ struct stcp_sock_data stcp_client_init(char *ADDRESS, uint16_t PORT){
                 struct hostent *host;
                 host = gethostbyname(ADDRESS);
                 if (host != NULL){
-                    memcpy(&servaddr.sin_addr.s_addr,host->h_addr,host->h_length);
+                    servaddr.sin_addr.s_addr = inet_addr(inet_ntoa(*((struct in_addr*) host->h_addr_list[0])));
                 }
                 else {
                     stcp_debug(__func__, "ERROR", "failed to get host by name\n", ADDRESS);
@@ -269,7 +276,7 @@ struct stcp_sock_data stcp_client_init(char *ADDRESS, uint16_t PORT){
     return init_data;
 }
 
-#ifdef _SSL_H_
+
 struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
     struct stcp_sock_data init_data;
     int8_t retval = 0;
@@ -291,7 +298,7 @@ struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
                 struct hostent *host;
                 host = gethostbyname(ADDRESS);
                 if (host != NULL){
-                    memcpy(&servaddr.sin_addr.s_addr,host->h_addr,host->h_length);
+                    servaddr.sin_addr.s_addr = inet_addr(inet_ntoa(*((struct in_addr*) host->h_addr_list[0])));
                 }
                 else {
                     stcp_debug(__func__, "ERROR", "failed to get host by name\n", ADDRESS);
@@ -329,11 +336,6 @@ struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
                 while (connect(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr)) != 0) {
                     sleep(1); 
                 }
-            }
-            
-            SSL_load_error_strings ();
-            if (SSL_library_init () < 0){
-                stcp_debug(__func__, "WARNING", "failed when init SSL Library\n");
             }
 
             SSL_CTX *ssl_ctx = SSL_CTX_new (SSLv23_client_method ());
@@ -356,7 +358,7 @@ struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
     } while (retval < 0 && infinite_retry_mode == INFINITE_RETRY);
     return init_data;
 }
-#endif
+
 
 int16_t stcp_send_data(struct stcp_sock_data com_data, char* buff, int16_t size_set){
     int16_t bytes;
@@ -378,7 +380,7 @@ int16_t stcp_recv_data(struct stcp_sock_data com_data, char* buff, int16_t size_
     return bytes;
 }
 
-#ifdef _SSL_H_
+
 int16_t stcp_ssl_send_data(struct stcp_sock_data com_data, char* buff, int16_t size_set){
     int16_t bytes;
     bytes = SSL_write(com_data.ssl_connection_f, buff, size_set*sizeof(char));
@@ -398,7 +400,7 @@ int16_t stcp_ssl_recv_data(struct stcp_sock_data com_data, char* buff, int16_t s
     }
     return bytes;
 }
-#endif
+
 
 int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_point, uint16_t *_port){
     if (strncmp(_url, "http://", 7) == 0 || strncmp(_url, "https://", 8) == 0){
@@ -565,18 +567,7 @@ char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_conte
         socket_f = stcp_client_init(host, port);
     }
     else {
-        #ifdef _SSL_H_
-            socket_f = stcp_ssl_client_init(host, port);
-        #else
-            printf("%s: you are using http secure request (https). please include SSL library.\n", __func__);
-            free(message_request);
-            free(host);
-            free(end_point);
-            free(protocol);
-            response = (char *) realloc(response, 17*sizeof(char));
-            strcpy(response, "no route to host");
-            return response;
-        #endif
+        socket_f = stcp_ssl_client_init(host, port);
     }
     if (socket_f.socket_f <= 0){
         free(message_request);
@@ -639,10 +630,7 @@ char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_conte
         stcp_send_data(socket_f, message_request, strlen(message_request));
     }
     else {
-        #ifdef _SSL_H_
-            stcp_ssl_send_data(socket_f, message_request, strlen(message_request));
-        #endif
-
+        stcp_ssl_send_data(socket_f, message_request, strlen(message_request));
     }
     free(message_request);
     free(host);
@@ -658,9 +646,7 @@ char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_conte
             bytes = stcp_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
         }
         else {
-            #ifdef _SSL_H_
-                bytes = stcp_ssl_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
-            #endif
+            bytes = stcp_ssl_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
         }
         if (bytes == -1){
             stcp_debug(__func__, "ERROR", "Lost Connection\n");
@@ -678,9 +664,7 @@ char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_conte
         stcp_close(&socket_f);
     }
     else {
-        #ifdef _SSL_H_
-            stcp_ssl_close(&socket_f);
-        #endif
+        stcp_ssl_close(&socket_f);
     }
     free(protocol);
     if (strlen(response) == 0){
@@ -711,29 +695,58 @@ void stcp_close(struct stcp_sock_data *init_data){
     }
 }
 
-#ifdef _SSL_H_
 void stcp_ssl_close(struct stcp_sock_data *init_data){
-    if(init_data->socket_f == init_data->connection_f){
-        free(init_data->ssl_connection_f);
-        close(init_data->socket_f);
-        init_data->socket_f = -1;
+    if (init_data->socket_f > 0){
+        if(init_data->socket_f == init_data->connection_f){
+            SSL_shutdown(init_data->ssl_connection_f);
+            SSL_free(init_data->ssl_connection_f);
+            init_data->ssl_connection_f = NULL;
+            close(init_data->socket_f);
+            init_data->socket_f = -1;
+        }
+        else{
+            SSL_shutdown(init_data->ssl_connection_f);
+            SSL_free(init_data->ssl_connection_f);
+            init_data->ssl_connection_f = NULL;
+            close(init_data->connection_f);
+            close(init_data->socket_f);
+            init_data->connection_f = -1;
+            init_data->socket_f = -1;
+        }
     }
-    else{
-        free(init_data->ssl_connection_f);
-        close(init_data->connection_f);
-        close(init_data->socket_f);
-        init_data->connection_f = -1;
-        init_data->socket_f = -1;
+    else {
+        if(init_data->socket_f == init_data->connection_f){
+            SSL_free(init_data->ssl_connection_f);
+            init_data->ssl_connection_f = NULL;
+            close(init_data->socket_f);
+            init_data->socket_f = -1;
+        }
+        else{
+            SSL_free(init_data->ssl_connection_f);
+            init_data->ssl_connection_f = NULL;
+            close(init_data->connection_f);
+            close(init_data->socket_f);
+            init_data->connection_f = -1;
+            init_data->socket_f = -1;
+        }
     }
 }
-#endif
 
 static int16_t stcp_get_content_length(char *_text_source){
-    char buff_info[17];
+    char *buff_info;
+    do {
+        buff_info = (char *) malloc(17*sizeof(char));
+        if (buff_info == NULL){
+            stcp_debug(__func__, "WARNING", "failed to allocate memory\n");
+            usleep(1000);
+        }
+    } while (buff_info == NULL);
     char buff_data[7];
-    for (int16_t i=0; i<(strlen(_text_source) - strlen("Content-Length: ")); i++){
+    int16_t i=0;
+    for (i=0; i<(strlen(_text_source) - strlen("Content-Length: ")); i++){
         memset(buff_info, 0x00, 17*sizeof(char));
-        for (int8_t j=0; j<strlen("Content-Length: "); j++){
+        int8_t j=0;
+        for (j=0; j<strlen("Content-Length: "); j++){
             buff_info[j] = _text_source[i + j];
         }
         if (strcmp(buff_info, "Content-Length: ") == 0){
@@ -741,6 +754,7 @@ static int16_t stcp_get_content_length(char *_text_source){
             memset(buff_data, 0x00, 7*sizeof(char));
             for (int8_t j=0; j<6; j++){
                 if (j>0 && (_text_source[i + j] < '0' || _text_source[i + j] > '9')){
+                    free(buff_info);
                     return atoi(buff_data);
                 }
                 else if (_text_source[i + j] >= '0' && _text_source[i + j] <= '9'){
@@ -750,10 +764,12 @@ static int16_t stcp_get_content_length(char *_text_source){
         }
         else if (i > 3){
             if (_text_source[i-3] == '\r' && _text_source[i-2] == '\n' && _text_source[i-1] == '\r' && _text_source[i] == '\n'){
+                free(buff_info);
                 return (int16_t)(strlen(_text_source) - i + 1);
             }
         }
     }
+    free(buff_info);
     return 0;
 }
 
@@ -761,39 +777,68 @@ static char *stcp_select_request(char *response, stcp_request_type _request_type
     if (_request_type == STCP_REQ_COMPLETE){
         return response;
     }
-    else if (_request_type == STCP_REQ_HEADER_ONLY){
-        int16_t content_length = stcp_get_content_length(response);
-        char *response_tmp = (char *) malloc((strlen(response) - content_length) - 1);
-        if (response_tmp == NULL){
-            stcp_debug(__func__, "ERROR", "failed to allocate memory\n");
-            return response;
-        }
-        if (content_length == 0){
-            return response;
-        } else {
-            memset(response_tmp, 0x00, ((strlen(response) - content_length) - 1)*sizeof(char));
-            for (int16_t i=0; i<(strlen(response) - content_length - 3); i++){
-                response_tmp[i] = response[i];
-            }
-            return response_tmp;
-        }
+
+    uint16_t i=0;
+    char *http_status_response = (char *) malloc(60 * sizeof(char));
+    if (http_status_response == NULL){
+        stcp_debug(__func__, "ERROR", "failed to allocate http_status_response memory\n");
+        return response;
     }
-    else if (_request_type == STCP_REQ_CONTENT_ONLY){
-        int16_t content_length = stcp_get_content_length(response);
-        char *response_tmp = (char *) malloc(content_length + 1);
-        if (response_tmp == NULL){
-            stcp_debug(__func__, "ERROR", "failed to allocate memory\n");
-            return response;
+
+    memset(http_status_response, 0x00, 60*sizeof(char));
+    for (i=0; i<strlen(response); i++){
+        if (response[i] == '\n') break;
+        http_status_response[i] = response[i];
+    }
+    http_status_response = (char *) realloc(http_status_response, (i+1)*sizeof(char));
+
+    if (_request_type == STCP_REQ_HTTP_STATUS_ONLY){
+        free(response);
+        return http_status_response;
+    }
+    else if (strstr(http_status_response, "200") == NULL  && _request_type == STCP_REQ_CONTENT_BLOCKING_BY_STATUS){
+        free(response);
+        return http_status_response;
+    }
+
+    int16_t content_length = stcp_get_content_length(response);
+    if (content_length == 0 || content_length > strlen(response)){
+        free(response);
+        return http_status_response;
+    }
+
+    char *response_tmp;
+    if (_request_type == STCP_REQ_HEADER_ONLY){
+        response_tmp = (char *) malloc((strlen(response) - content_length) - 1);
+    }
+    else if (_request_type == STCP_REQ_CONTENT_ONLY || _request_type == STCP_REQ_CONTENT_BLOCKING_BY_STATUS){
+        response_tmp = (char *) malloc(content_length + 1);
+    }
+
+    if (response_tmp == NULL){
+        stcp_debug(__func__, "ERROR", "failed to allocate temporary memory\n");
+        free(response);
+        return http_status_response;
+    }
+
+    free(http_status_response);
+
+    if (_request_type == STCP_REQ_HEADER_ONLY){
+        memset(response_tmp, 0x00, ((strlen(response) - content_length) - 1)*sizeof(char));
+        for (i=0; i<(strlen(response) - content_length - 3); i++){
+            response_tmp[i] = response[i];
         }
-        if (content_length == 0){
-            return response;
-        } else {
-            memset(response_tmp, 0x00, (content_length + 1)*sizeof(char));
-            for (int16_t i=0; i<content_length; i++){
-                response_tmp[i] = response[i + (strlen(response) - content_length)];
-            }
-            return response_tmp;
+        free(response);
+        return response_tmp;
+    }
+
+    else if (_request_type == STCP_REQ_CONTENT_ONLY || _request_type == STCP_REQ_CONTENT_BLOCKING_BY_STATUS){
+        memset(response_tmp, 0x00, (content_length + 1)*sizeof(char));
+        for (i=0; i<content_length; i++){
+            response_tmp[i] = response[i + (strlen(response) - content_length)];
         }
+        free(response);
+        return response_tmp;
     }
     return NULL;
 }
