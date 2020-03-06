@@ -660,7 +660,7 @@ char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_conte
         response = (char *) realloc(response, total_bytes + 1);
         memcpy(response + (total_bytes - bytes), response_tmp, bytes);
         response[total_bytes] = 0x00;
-    } while (bytes >= SIZE_PER_RECV);
+    } while (bytes >= 1);
     if (strcmp(protocol, "http") == 0){
         stcp_close(&socket_f);
     }
