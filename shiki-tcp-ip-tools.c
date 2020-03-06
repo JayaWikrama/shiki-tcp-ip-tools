@@ -17,6 +17,7 @@
 #include <time.h>
 #include <netdb.h> 
 #include <netinet/in.h>
+#include <netinet/ip_icmp.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -251,7 +252,7 @@ struct stcp_sock_data stcp_client_init(char *ADDRESS, uint16_t PORT){
 
             stcp_debug(__func__, "INFO", "waiting for server...\n");
             if (time_out_in_seconds > 0){
-                uint16_t time_out_connect = 100;
+                uint16_t time_out_connect = 2;
                 int8_t retval = 0;
                 while ((retval = connect(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr))) != 0 && time_out_connect > 0) {
                     usleep(1000);
@@ -319,7 +320,7 @@ struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
 
             stcp_debug(__func__, "INFO", "waiting for server...\n");
             if (time_out_in_seconds > 0){
-                uint16_t time_out_connect = 100;
+                uint16_t time_out_connect = 2;
                 int8_t retval = 0;
                 while ((retval = connect(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr))) != 0 && time_out_connect > 0) {
                     usleep(1000);
@@ -841,4 +842,181 @@ static char *stcp_select_request(char *response, stcp_request_type _request_type
         return response_tmp;
     }
     return NULL;
+}
+
+// PING PURPOSE
+// run_without_root (do on shell) : setcap cap_net_raw+ep executable_file
+static unsigned short stcp_checksum(void *b, int len){
+	unsigned short *buff = b;
+	unsigned int sum=0;
+	unsigned short result;
+
+	for ( sum = 0; len > 1; len -= 2 ) 
+		sum += *buff++; 
+	if ( len == 1 ) 
+		sum += *(unsigned char*)buff; 
+	sum = (sum >> 16) + (sum & 0xFFFF); 
+	sum += (sum >> 16); 
+	result = ~sum; 
+	return result; 
+} 
+
+struct stcp_ping_summary stcp_ping(char *ADDRESS, uint16_t NUM_OF_PING){
+    struct stcp_sock_data init_data;
+    struct sockaddr_in servaddr;
+
+    const int16_t PACKET_SIZE = 64;
+    const uint16_t PING_DELAY = 1000;
+    char ip_address[16];
+
+    struct stcp_ping_summary ping_data;
+    memset(&ping_data, 0x00, sizeof(struct stcp_ping_summary));
+
+    init_data.socket_f = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+    if (init_data.socket_f == -1) {
+        stcp_debug(__func__, "CRITICAL", "socket creation failed...\n");
+    }
+    else{
+        stcp_debug(__func__, "INFO", "Socket successfully created : %d\n", init_data.socket_f);
+        memset(&servaddr, 0x00, sizeof(servaddr));
+        servaddr.sin_family = AF_INET;
+        servaddr.sin_port = htons(22);
+        if(stcp_check_ip(ADDRESS) != 0){
+            struct hostent *host;
+            host = gethostbyname(ADDRESS);
+            if (host != NULL){
+                servaddr.sin_addr.s_addr = inet_addr(inet_ntoa(*((struct in_addr*) host->h_addr_list[0])));
+                strcpy(ip_address, inet_ntoa(*((struct in_addr*) host->h_addr_list[0])));
+            }
+            else {
+                stcp_debug(__func__, "ERROR", "failed to get host by name\n", ADDRESS);
+                stcp_close(&init_data);
+                ping_data.state = -1;
+                return ping_data;
+            }
+        }
+        else {
+            servaddr.sin_addr.s_addr = inet_addr(ADDRESS);
+            strcpy(ip_address, ADDRESS);
+        }
+    }
+
+    struct ping_pkt 
+    { 
+	    struct icmphdr hdr; 
+	    char msg[PACKET_SIZE-sizeof(struct icmphdr)]; 
+    };
+
+    struct ping_pkt pckt;
+	struct sockaddr_in r_addr;
+	struct timeval tv_out;
+	struct timespec tm_start, tm_end;
+    struct timespec tc_start, tc_end;
+	int16_t ttl_val= (int16_t)PACKET_SIZE, msg_count=0, i;
+    int16_t bytes = 0;
+	long double total_tm_ping;
+	socklen_t addr_len;
+
+	tv_out.tv_sec = 2;
+	tv_out.tv_usec = 0;
+
+    clock_gettime(CLOCK_MONOTONIC, &tc_start);
+
+	if (setsockopt(init_data.socket_f, SOL_IP, IP_TTL, &ttl_val, sizeof(ttl_val)) != 0) 
+	{
+		stcp_debug(__func__, "CRITICAL", "Setting socket options to TTL failed!\n");
+	}
+	else
+	{
+		stcp_debug(__func__, "INFO", "Socket set to TTL\n");
+	}
+
+	// setting timeout of recv setting
+	setsockopt(init_data.socket_f, SOL_SOCKET, SO_RCVTIMEO,(const char*)&tv_out, sizeof tv_out);
+
+	while (msg_count < NUM_OF_PING){
+		memset(&pckt, 0x00, sizeof(pckt));
+		pckt.hdr.type = ICMP_ECHO;
+		pckt.hdr.un.echo.id = getpid();
+		
+		for ( i = 0; i < sizeof(pckt.msg)-1; i++ ) pckt.msg[i] = i+'0'; 
+		
+		pckt.msg[i] = 0; 
+		pckt.hdr.un.echo.sequence = msg_count++; 
+		pckt.hdr.checksum = stcp_checksum(&pckt, sizeof(pckt)); 
+		addr_len=sizeof(r_addr);
+
+		//send packet
+		clock_gettime(CLOCK_MONOTONIC, &tm_start);
+		if (sendto(init_data.socket_f, &pckt, sizeof(pckt), 0, (struct sockaddr*) &servaddr, sizeof(servaddr)) <= 0) 
+		{ 
+			stcp_debug(__func__, "CRITICAL", "Packet Sending Failed!\n"); 
+		} 
+		//receive packet
+		else if ((bytes = recvfrom(init_data.socket_f, &pckt, sizeof(pckt), 0, (struct sockaddr*)&r_addr, &addr_len)) <= 0 && msg_count>1) 
+		{
+            ping_data.tx_counter++;
+			stcp_debug(__func__, "CRITICAL", "Packet receive failed!\n");
+		}
+		else {
+            ping_data.tx_counter++;
+			clock_gettime(CLOCK_MONOTONIC, &tm_end);
+			total_tm_ping = (tm_end.tv_sec - tm_start.tv_sec)*1000.0;
+			total_tm_ping = total_tm_ping + (tm_end.tv_nsec - tm_start.tv_nsec)/1000000.0;
+
+			if(pckt.hdr.type!=69)
+			{
+				stcp_debug(__func__, "CRITICAL", "Error..Packet received with ICMP type %d code %d\n", pckt.hdr.type, pckt.hdr.code);
+			}
+            else if(pckt.hdr.code!=0){
+                stcp_debug(__func__, "WARNING", "packet received (%d) with ICMP type %d code %d : %Lfms\n", bytes, pckt.hdr.type, pckt.hdr.code, total_tm_ping);
+                if (ping_data.max_rtt < (uint16_t) total_tm_ping) {
+                    ping_data.max_rtt = (uint16_t) total_tm_ping;
+                }
+                if (ping_data.min_rtt > (uint16_t) total_tm_ping || ping_data.min_rtt == 0){
+                    ping_data.min_rtt = (uint16_t) total_tm_ping;
+                }
+
+				if (ping_data.avg_rtt == 0) ping_data.avg_rtt = (uint16_t) total_tm_ping;
+				else ping_data.avg_rtt = (ping_data.avg_rtt + (uint16_t) total_tm_ping)/2;
+            }
+			else
+			{
+                ping_data.rx_counter++;
+                if (ping_data.max_rtt < (uint16_t) total_tm_ping) {
+                    ping_data.max_rtt = (uint16_t) total_tm_ping;
+                }
+                if (ping_data.min_rtt > (uint16_t) total_tm_ping || ping_data.min_rtt == 0){
+                    ping_data.min_rtt = (uint16_t) total_tm_ping;
+                }
+				stcp_debug(__func__, "INFO", "%d bytes from (%s) msg_seq=%d ttl=%d rtt = %Lf ms\n", PACKET_SIZE, ip_address, msg_count, ttl_val, total_tm_ping);
+				if (ping_data.avg_rtt == 0) ping_data.avg_rtt = (uint16_t) total_tm_ping;
+				else ping_data.avg_rtt = (ping_data.avg_rtt + (uint16_t) total_tm_ping)/2;
+			}
+		}
+		if (msg_count < NUM_OF_PING) usleep(PING_DELAY * 1000);
+	}
+    stcp_close(&init_data);
+
+    clock_gettime(CLOCK_MONOTONIC, &tc_end);
+	ping_data.time_counter = (tc_end.tv_sec - tc_start.tv_sec)*1000.0;
+	ping_data.time_counter = ping_data.time_counter + (tc_end.tv_nsec - tc_start.tv_nsec)/1000000.0;
+
+    ping_data.packet_loss = (100*(ping_data.tx_counter - ping_data.rx_counter))/ping_data.tx_counter;
+
+    stcp_debug(__func__, "INFO", "\n"
+     "  --- %s ping statistics ---\n"
+     "  %d packet transmitted, %d received, %d%% packet loss, time %dms\n"
+     "  rtt min/avg/max = %d/%d/%d ms\n",
+     ADDRESS,
+     ping_data.tx_counter, ping_data.rx_counter, ping_data.packet_loss, ping_data.time_counter,
+     ping_data.min_rtt, ping_data.avg_rtt, ping_data.max_rtt
+    );
+
+    if (ping_data.packet_loss == 100){
+        ping_data.state = -2;
+        return ping_data;
+    }
+
+	return ping_data;
 }

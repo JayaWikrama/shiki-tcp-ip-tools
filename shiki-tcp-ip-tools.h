@@ -17,6 +17,17 @@ struct stcp_sock_data{
   SSL *ssl_connection_f;
 };
 
+struct stcp_ping_summary{
+  int8_t state;
+  uint16_t tx_counter;
+  uint16_t rx_counter;
+  uint16_t max_rtt;
+  uint16_t min_rtt;
+  uint16_t avg_rtt;
+  uint8_t packet_loss;
+  uint32_t time_counter;
+};
+
 typedef enum {
   STCP_REQ_COMPLETE = 0,
   STCP_REQ_HEADER_ONLY = 1,
@@ -72,4 +83,8 @@ char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_conte
 
 void stcp_close(struct stcp_sock_data *init_data);
 void stcp_ssl_close(struct stcp_sock_data *init_data);
+
+// ADDITIONAL PURPOSE
+struct stcp_ping_summary stcp_ping(char *ADDRESS, uint16_t NUM_OF_PING);
+
 #endif
