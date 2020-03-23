@@ -105,6 +105,7 @@ static void stcp_debug(const char *function_name, char *debug_type, char *debug_
             );
         #endif
         free(tmp_debug_msg);
+        tmp_debug_msg = NULL;
     }
 }
 
@@ -550,6 +551,7 @@ int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_poin
         end_point = (char *) malloc(2*sizeof(char));
         if (end_point == NULL){
             free(host);
+            host = NULL;
             stcp_debug(__func__, "ERROR", "failed to allocate end_point valriable memory\n");
             return -1;
         }
@@ -557,6 +559,8 @@ int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_poin
         if (buff == NULL){
             free(host);
             free(end_point);
+            host = NULL;
+            end_point = NULL;
             stcp_debug(__func__, "ERROR", "failed to allocate buff valriable memory\n");
             return -1;
         }
@@ -584,9 +588,12 @@ int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_poin
         }
         strcpy(_host, host);
         free(host);
+        host = NULL;
         if (_url[idx_char_url] == 0x00){
             free(end_point);
             free(buff);
+            end_point = NULL;
+            buff = NULL;
             return 1;
         }
         idx_char_url++;
@@ -604,6 +611,8 @@ int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_poin
         if (_url[idx_char_url - 1] == 0x00){
             free(end_point);
             free(buff);
+            end_point = NULL;
+            buff = NULL;
             return 1;
         }
         idx_char_buff = 0;
@@ -619,6 +628,8 @@ int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_poin
         }
         free(end_point);
         free(buff);
+        end_point = NULL;
+        buff = NULL;
     }
     else {
         stcp_debug(__func__, "ERROR", "undefined protocol (http/https - select one)\n");
@@ -675,6 +686,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
     if (host == NULL){
         stcp_debug(__func__, "ERROR", "failed to allocate host variable memory\n");
         free(message_request);
+        message_request = NULL;
         return NULL;
     }
     end_point = (char *) malloc(strlen(_url) * sizeof(char));
@@ -682,6 +694,8 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         stcp_debug(__func__, "ERROR", "failed to allocate end_point variable memory\n");
         free(message_request);
         free(host);
+        message_request = NULL;
+        host = NULL;
         return NULL;
     }
     protocol = (char *) malloc(6 * sizeof(char));
@@ -690,6 +704,9 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         free(message_request);
         free(host);
         free(end_point);
+        message_request = NULL;
+        host = NULL;
+        end_point = NULL;
         return NULL;
     }
     response = (unsigned char *) malloc(2 * sizeof(unsigned char));
@@ -699,6 +716,10 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         free(host);
         free(end_point);
         free(protocol);
+        message_request = NULL;
+        host = NULL;
+        end_point = NULL;
+        protocol = NULL;
         return NULL;
     }
     int8_t retval = stcp_url_parser(_url, host, protocol, end_point, &port);
@@ -708,6 +729,11 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         free(end_point);
         free(protocol);
         free(response);
+        message_request = NULL;
+        host = NULL;
+        end_point = NULL;
+        protocol = NULL;
+        response = NULL;
         return NULL;
     }
     stcp_debug(__func__, "INFO", "protocol: %s\n", protocol);
@@ -736,6 +762,11 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         free(end_point);
         free(protocol);
         free(response);
+        message_request = NULL;
+        host = NULL;
+        end_point = NULL;
+        protocol = NULL;
+        response = NULL;
         return NULL;
         #endif
     }
@@ -744,6 +775,10 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         free(host);
         free(end_point);
         free(protocol);
+        message_request = NULL;
+        host = NULL;
+        end_point = NULL;
+        protocol = NULL;
         response = (unsigned char *) realloc(response, 17*sizeof(unsigned char));
         strcpy((char *) response, "no route to host");
         return response;
@@ -846,6 +881,9 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
     free(message_request);
     free(host);
     free(end_point);
+    message_request = NULL;
+    host = NULL;
+    end_point = NULL;
 
     int16_t bytes = 0;
     int16_t total_bytes = 0;
@@ -963,6 +1001,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         #endif
     }
     free(protocol);
+    protocol = NULL;
     if (_request_type == STCP_REQ_DOWNLOAD_CONTENT){
         memset(stcp_file_name, 0x00, sizeof(stcp_file_name));
         if (download_file != NULL){
@@ -1083,6 +1122,7 @@ static unsigned long stcp_get_content_length(char *_text_source){
         }
     }
     free(buff_info);
+    buff_info = NULL;
     return 0;
 }
 
