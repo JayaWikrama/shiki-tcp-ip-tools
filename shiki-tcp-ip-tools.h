@@ -3,6 +3,7 @@
 
 #define __STCP_PING__
 #define __STCP_SSL__
+#define __STCP_WEBSERVER__
 
 #include <stdint.h>
 #ifdef __STCP_SSL__
@@ -34,6 +35,14 @@ struct stcp_sock_data{
     uint8_t packet_loss;
     uint32_t time_counter;
   };
+#endif
+
+#ifdef __STCP_WEBSERVER__
+  typedef enum{
+    STCP_401_UNAUTHOIZED = 1,
+    STCP_404_NOT_FOUND = 2,
+    STCP_405_METHOD_NOT_ALLOWED = 3
+  } stcp_webserver_negative_code;
 #endif
 
 typedef enum {
@@ -68,6 +77,16 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, int16_t _value);
 */
 struct stcp_sock_data stcp_client_init(char *ADDRESS, uint16_t PORT);
 struct stcp_sock_data stcp_server_init(char *ADDRESS, uint16_t PORT);
+
+#ifdef __STCP_WEBSERVER__
+int8_t stcp_http_webserver_init();
+int8_t stcp_http_webserver_add_negative_code_response(stcp_webserver_negative_code _code_param, char *_response_content);
+int8_t stcp_http_webserver_add_response(char *_end_point, char *_response_content, char *_request_method);
+int8_t stcp_http_webserver_add_response_file(char *_end_point, char *_response_file, char *_request_method);
+int8_t stcp_http_webserver_set_content_type(char *_content_type);
+int8_t stcp_http_webserver_set_accept(char *_accept);
+int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT);
+#endif
 
 #ifdef __STCP_SSL__
   struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT);

@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.00.20.03.08
+    ver         : 3.01.20.03.23
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -32,9 +32,13 @@
 #ifdef __STCP_PING__
     #include <netinet/ip_icmp.h>
 #endif
+#ifdef __STCP_WEBSERVER__
+    #include "../shiki-linked-list/shiki-linked-list.h"
+    SHLink webserver_list;
+#endif
 
 #define SA struct sockaddr
-#define STCP_VER "3.00.20.03.08"
+#define STCP_VER "3.00.20.23.08"
 
 static const int8_t STCP_HEADER_CHECK = 0;
 static const int8_t STCP_HEADER_PASS = 1;
@@ -42,9 +46,35 @@ static const int8_t STCP_HEADER_BLOCK = 2;
 static const int8_t STCP_PROCESS_GET_HEADER = 3;
 static const int8_t STCP_PROCESS_GET_CONTENT = 4;
 
+#ifdef __STCP_WEBSERVER__
+static const int8_t STCP_SERVER_RUNING = 0;
+static const int8_t STCP_SERVER_STOPED = 1;
+static const int8_t STCP_SERVER_FAILED = 2;
+struct stcp_webserver{
+    char *server_header;
+    char request[8];
+    char *rcv_header;
+    char *rcv_endpoint;
+    char *rcv_content_type;
+    char *rcv_acception_type;
+    char *rcv_auth;
+    char *rcv_cookies;
+    char *rcv_content;
+    uint16_t content_length;
+} stcp_webserver_data;
+
+struct stcp_webserver_header{
+    char *content_type;
+    char *accept_type;
+} stcp_webserver_header;
+
+int8_t stcp_webserver_init_state = 0;
+int8_t stcp_server_state = 0;
+#endif
+
 uint16_t SIZE_PER_RECV = 128;
 
-int8_t debug_mode_status = STCP_DEBUG_OFF;
+int8_t stcp_debug_mode_status = STCP_DEBUG_OFF;
 int8_t infinite_retry_mode = WITHOUT_RETRY;
 uint16_t time_out_in_seconds = 0;
 uint16_t time_out_in_milliseconds = 0;
@@ -56,7 +86,7 @@ static unsigned long stcp_get_content_length(char *_text_source);
 static unsigned char *stcp_select_content(unsigned char *response, uint32_t _content_length);
 
 static void stcp_debug(const char *function_name, char *debug_type, char *debug_msg, ...){
-	if (debug_mode_status == 1 || strcmp(debug_type, "INFO") != 0){
+	if (stcp_debug_mode_status == 1 || strcmp(debug_type, "INFO") != 0){
         struct tm *d_tm;
         struct timeval tm_debug;
         uint16_t msec = 0;
@@ -79,6 +109,11 @@ static void stcp_debug(const char *function_name, char *debug_type, char *debug_
 	    va_end(aptr);
         #ifdef __linux__
             if (strcmp(debug_type, "INFO")==0)
+                printf("\033[1;32m%02d-%02d-%04d %02d:%02d:%02d.%03d\033[1;34m STCP\033[1;32m %s: %s: %s\033[0m",
+                 d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec,
+                 msec, debug_type, function_name, tmp_debug_msg
+                );
+            if (strcmp(debug_type, "WEBSERVER INFO")==0)
                 printf("\033[1;32m%02d-%02d-%04d %02d:%02d:%02d.%03d\033[1;34m STCP\033[1;32m %s: %s: %s\033[0m",
                  d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec,
                  msec, debug_type, function_name, tmp_debug_msg
@@ -240,7 +275,7 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, int16_t _value){
     }
     else if (_setup_parameter == STCP_SET_DEBUG_MODE){
         if ((int8_t)_value == STCP_DEBUG_ON || (int8_t)_value == STCP_DEBUG_OFF){
-            debug_mode_status = (int8_t)_value;
+            stcp_debug_mode_status = (int8_t)_value;
         }
         else {
             stcp_debug(__func__, "WARNING", "wrong value\n");
@@ -306,19 +341,16 @@ struct stcp_sock_data stcp_server_init(char *ADDRESS, uint16_t PORT){
             else {
                 servaddr.sin_addr.s_addr = inet_addr(ADDRESS);
             }
-
-            if (time_out_in_seconds > 0 || time_out_in_milliseconds > 0){
-                struct timeval tv;
-                tv.tv_sec = time_out_in_seconds;
-                tv.tv_usec = 0;
-                setsockopt(init_data.socket_f, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
-            }
-
+            const int optVal = 1;
+            const socklen_t optLen = sizeof(optVal);
+            setsockopt(init_data.socket_f, SOL_SOCKET, SO_REUSEADDR, (void*) &optVal, optLen);
+            
             if ((bind(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr))) != 0) { 
                 stcp_debug(__func__, "CRITICAL", "socket bind failed...\n");
-                if (infinite_retry_mode == 1) stcp_debug(__func__, "INFO", "trying to create a socket...\n");;
+                if (infinite_retry_mode == 1) stcp_debug(__func__, "INFO", "trying to create a socket...\n");
                 retval = -2; 
                 close(init_data.socket_f);
+                init_data.socket_f = 0;
                 sleep(1);
             }
             else{
@@ -328,6 +360,7 @@ struct stcp_sock_data stcp_server_init(char *ADDRESS, uint16_t PORT){
                     stcp_debug(__func__, "CRITICAL", "Listen failed...\n");
                     retval = -3;
                     close(init_data.socket_f);
+                    init_data.socket_f = 0;
                 }
                 else{
                     stcp_debug(__func__, "INFO", "Server listening..\n"); 
@@ -341,6 +374,12 @@ struct stcp_sock_data stcp_server_init(char *ADDRESS, uint16_t PORT){
                     }
                     else{
                         stcp_debug(__func__, "INFO", "server acccept the client...\n");
+                        if (time_out_in_seconds > 0 || time_out_in_milliseconds > 0){
+                            struct timeval tv;
+                            tv.tv_sec = time_out_in_seconds;
+                            tv.tv_usec = 0;
+                            setsockopt(init_data.connection_f, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+                        }
                     }
                 }
             }
@@ -348,6 +387,1028 @@ struct stcp_sock_data stcp_server_init(char *ADDRESS, uint16_t PORT){
     } while (retval < 0 && infinite_retry_mode == INFINITE_RETRY);
     return init_data;
 }
+
+#ifdef __STCP_WEBSERVER__
+int8_t stcp_http_webserver_init(){
+    stcp_webserver_data.server_header = NULL;
+    stcp_webserver_data.rcv_header = NULL;
+    stcp_webserver_data.rcv_endpoint = NULL;
+    stcp_webserver_data.rcv_content_type = NULL;
+    stcp_webserver_data.rcv_acception_type = NULL;
+    stcp_webserver_data.rcv_auth = NULL;
+    stcp_webserver_data.rcv_cookies = NULL;
+    stcp_webserver_data.rcv_content = NULL;
+    stcp_webserver_header.content_type = NULL;
+    stcp_webserver_header.accept_type = NULL;
+
+    webserver_list = NULL;
+    stcp_webserver_data.server_header = (char *) malloc(8*sizeof(char));
+    if (stcp_webserver_data.server_header == NULL){
+        stcp_debug(__func__, "ERROR", "failed to alllocate server_header memory\n");
+        return -1;
+    }
+    stcp_webserver_data.rcv_header = (char *) malloc(8*sizeof(char));
+    if (stcp_webserver_data.rcv_header == NULL){
+        stcp_debug(__func__, "ERROR", "failed to alllocate rcv_header memory\n");
+        free(stcp_webserver_data.server_header);
+        stcp_webserver_data.server_header = NULL;
+        return -1;
+    }
+    stcp_webserver_data.rcv_endpoint = (char *) malloc(8*sizeof(char));
+    if (stcp_webserver_data.rcv_endpoint == NULL){
+        stcp_debug(__func__, "ERROR", "failed to alllocate rcv_endpoint memory\n");
+        free(stcp_webserver_data.server_header);
+        free(stcp_webserver_data.rcv_header);
+        stcp_webserver_data.server_header = NULL;
+        stcp_webserver_data.rcv_header = NULL;
+        return -1;
+    }
+    stcp_webserver_data.rcv_content_type = (char *) malloc(8*sizeof(char));
+    if (stcp_webserver_data.rcv_content_type == NULL){
+        stcp_debug(__func__, "ERROR", "failed to alllocate rcv_content_type memory\n");
+        free(stcp_webserver_data.server_header);
+        free(stcp_webserver_data.rcv_header);
+        free(stcp_webserver_data.rcv_endpoint);
+        stcp_webserver_data.server_header = NULL;
+        stcp_webserver_data.rcv_header = NULL;
+        stcp_webserver_data.rcv_endpoint = NULL;
+        return -1;
+    }
+    stcp_webserver_data.rcv_acception_type = (char *) malloc(8*sizeof(char));
+    if (stcp_webserver_data.rcv_acception_type == NULL){
+        stcp_debug(__func__, "ERROR", "failed to alllocate rcv_acception_type memory\n");
+        free(stcp_webserver_data.server_header);
+        free(stcp_webserver_data.rcv_header);
+        free(stcp_webserver_data.rcv_endpoint);
+        free(stcp_webserver_data.rcv_content_type);
+        stcp_webserver_data.server_header = NULL;
+        stcp_webserver_data.rcv_header = NULL;
+        stcp_webserver_data.rcv_endpoint = NULL;
+        stcp_webserver_data.rcv_content_type = NULL;
+        return -1;
+    }
+    stcp_webserver_data.rcv_auth = (char *) malloc(8*sizeof(char));
+    if (stcp_webserver_data.rcv_auth == NULL){
+        stcp_debug(__func__, "ERROR", "failed to alllocate rcv_auth memory\n");
+        free(stcp_webserver_data.server_header);
+        free(stcp_webserver_data.rcv_header);
+        free(stcp_webserver_data.rcv_endpoint);
+        free(stcp_webserver_data.rcv_content_type);
+        free(stcp_webserver_data.rcv_acception_type);
+        stcp_webserver_data.server_header = NULL;
+        stcp_webserver_data.rcv_header = NULL;
+        stcp_webserver_data.rcv_endpoint = NULL;
+        stcp_webserver_data.rcv_content_type = NULL;
+        stcp_webserver_data.rcv_acception_type = NULL;
+        return -1;
+    }
+    stcp_webserver_data.rcv_cookies = (char *) malloc(8*sizeof(char));
+    if (stcp_webserver_data.rcv_cookies == NULL){
+        stcp_debug(__func__, "ERROR", "failed to alllocate rcv_cookies memory\n");
+        free(stcp_webserver_data.server_header);
+        free(stcp_webserver_data.rcv_header);
+        free(stcp_webserver_data.rcv_endpoint);
+        free(stcp_webserver_data.rcv_content_type);
+        free(stcp_webserver_data.rcv_acception_type);
+        free(stcp_webserver_data.rcv_auth);
+        stcp_webserver_data.server_header = NULL;
+        stcp_webserver_data.rcv_header = NULL;
+        stcp_webserver_data.rcv_endpoint = NULL;
+        stcp_webserver_data.rcv_content_type = NULL;
+        stcp_webserver_data.rcv_acception_type = NULL;
+        stcp_webserver_data.rcv_auth = NULL;
+        return -1;
+    }
+    stcp_webserver_data.rcv_content = (char *) malloc(8*sizeof(char));
+    if (stcp_webserver_data.rcv_content == NULL){
+        stcp_debug(__func__, "ERROR", "failed to alllocate rcv_content memory\n");
+        free(stcp_webserver_data.server_header);
+        free(stcp_webserver_data.rcv_header);
+        free(stcp_webserver_data.rcv_endpoint);
+        free(stcp_webserver_data.rcv_content_type);
+        free(stcp_webserver_data.rcv_acception_type);
+        free(stcp_webserver_data.rcv_auth);
+        free(stcp_webserver_data.rcv_cookies);
+        stcp_webserver_data.server_header = NULL;
+        stcp_webserver_data.rcv_header = NULL;
+        stcp_webserver_data.rcv_endpoint = NULL;
+        stcp_webserver_data.rcv_content_type = NULL;
+        stcp_webserver_data.rcv_acception_type = NULL;
+        stcp_webserver_data.rcv_auth = NULL;
+        stcp_webserver_data.rcv_cookies = NULL;
+        return -1;
+    }
+    stcp_webserver_header.content_type = (char *) malloc(32*sizeof(char));
+    if (stcp_webserver_header.content_type == NULL){
+        stcp_debug(__func__, "ERROR", "failed to alllocate content_type memory\n");
+        free(stcp_webserver_data.server_header);
+        free(stcp_webserver_data.rcv_header);
+        free(stcp_webserver_data.rcv_endpoint);
+        free(stcp_webserver_data.rcv_content_type);
+        free(stcp_webserver_data.rcv_acception_type);
+        free(stcp_webserver_data.rcv_auth);
+        free(stcp_webserver_data.rcv_cookies);
+        free(stcp_webserver_data.rcv_content);
+        stcp_webserver_data.server_header = NULL;
+        stcp_webserver_data.rcv_header = NULL;
+        stcp_webserver_data.rcv_endpoint = NULL;
+        stcp_webserver_data.rcv_content_type = NULL;
+        stcp_webserver_data.rcv_acception_type = NULL;
+        stcp_webserver_data.rcv_auth = NULL;
+        stcp_webserver_data.rcv_cookies = NULL;
+        stcp_webserver_data.rcv_content = NULL;
+        return -1;
+    }
+    stcp_webserver_header.accept_type = (char *) malloc(8*sizeof(char));
+    if (stcp_webserver_header.accept_type == NULL){
+        stcp_debug(__func__, "ERROR", "failed to alllocate accept_type memory\n");
+        free(stcp_webserver_data.server_header);
+        free(stcp_webserver_data.rcv_header);
+        free(stcp_webserver_data.rcv_endpoint);
+        free(stcp_webserver_data.rcv_content_type);
+        free(stcp_webserver_data.rcv_acception_type);
+        free(stcp_webserver_data.rcv_auth);
+        free(stcp_webserver_data.rcv_cookies);
+        free(stcp_webserver_data.rcv_content);
+        free(stcp_webserver_header.content_type);
+        stcp_webserver_data.server_header = NULL;
+        stcp_webserver_data.rcv_header = NULL;
+        stcp_webserver_data.rcv_endpoint = NULL;
+        stcp_webserver_data.rcv_content_type = NULL;
+        stcp_webserver_data.rcv_acception_type = NULL;
+        stcp_webserver_data.rcv_auth = NULL;
+        stcp_webserver_data.rcv_cookies = NULL;
+        stcp_webserver_data.rcv_content = NULL;
+        stcp_webserver_header.content_type = NULL;
+        return -1;
+    }
+
+    strcpy(stcp_webserver_header.content_type, "text/html; charset=ISO-8859-1");
+    strcpy(stcp_webserver_header.accept_type, "*/*");
+    stcp_webserver_init_state = 1;
+    return 0;
+}
+
+static void stcp_http_webserver_bzero(){
+    stcp_webserver_data.rcv_header = (char *) realloc(stcp_webserver_data.rcv_header, 8*sizeof(char));
+    stcp_webserver_data.rcv_endpoint = (char *) realloc(stcp_webserver_data.rcv_endpoint, 8*sizeof(char));
+    stcp_webserver_data.rcv_content_type = (char *) realloc(stcp_webserver_data.rcv_content_type, 8*sizeof(char));
+    stcp_webserver_data.rcv_acception_type = (char *) realloc(stcp_webserver_data.rcv_acception_type, 8*sizeof(char));
+    stcp_webserver_data.rcv_auth = (char *) realloc(stcp_webserver_data.rcv_auth, 8*sizeof(char));
+    stcp_webserver_data.rcv_cookies = (char *) realloc(stcp_webserver_data.rcv_cookies, 8*sizeof(char));
+    stcp_webserver_data.rcv_content = (char *) realloc(stcp_webserver_data.rcv_content, 8*sizeof(char));
+
+    memset(stcp_webserver_data.rcv_header, 0x00, 8*sizeof(char));
+    memset(stcp_webserver_data.rcv_endpoint, 0x00, 8*sizeof(char));
+    memset(stcp_webserver_data.rcv_content_type, 0x00, 8*sizeof(char));
+    memset(stcp_webserver_data.rcv_acception_type, 0x00, 8*sizeof(char));
+    memset(stcp_webserver_data.rcv_auth, 0x00, 8*sizeof(char));
+    memset(stcp_webserver_data.rcv_cookies, 0x00, 8*sizeof(char));
+    memset(stcp_webserver_data.rcv_content, 0x00, 8*sizeof(char));
+
+    stcp_webserver_data.content_length = 0;
+}
+
+static void stcp_http_webserver_free(){
+    free(stcp_webserver_data.server_header);
+    free(stcp_webserver_data.rcv_header);
+    free(stcp_webserver_data.rcv_endpoint);
+    free(stcp_webserver_data.rcv_content_type);
+    free(stcp_webserver_data.rcv_acception_type);
+    free(stcp_webserver_data.rcv_auth);
+    free(stcp_webserver_data.rcv_cookies);
+    free(stcp_webserver_data.rcv_content);
+    free(stcp_webserver_header.content_type);
+    free(stcp_webserver_header.accept_type);
+
+    stcp_webserver_data.server_header = NULL;
+    stcp_webserver_data.rcv_header = NULL;
+    stcp_webserver_data.rcv_endpoint = NULL;
+    stcp_webserver_data.rcv_content_type = NULL;
+    stcp_webserver_data.rcv_acception_type = NULL;
+    stcp_webserver_data.rcv_auth = NULL;
+    stcp_webserver_data.rcv_cookies = NULL;
+    stcp_webserver_data.rcv_content = NULL;
+    stcp_webserver_data.content_length = 0;
+    stcp_webserver_data.rcv_content = NULL;
+    stcp_webserver_header.content_type = NULL;
+
+    shilink_free(&webserver_list);
+    webserver_list = NULL;
+}
+
+static int8_t stcp_http_webserver_header_get(unsigned char *_source_text, unsigned char *_specific_word, unsigned char **_return, unsigned char _end_code){
+    uint16_t len_buff = strlen((char *) _source_text);
+    unsigned char buff_tmp[strlen((char *) _specific_word) + 3];
+    uint16_t idx_char = 0;
+    uint16_t buffer_size = 8;
+    uint16_t content_size = 2;
+    uint16_t idx_add = 0;
+	while (idx_char<=len_buff){
+        memset(buff_tmp, 0x00, sizeof(buff_tmp));
+        idx_add = 0;
+        while(_source_text[idx_char] != ' ' &&
+         _source_text[idx_char] != '\n' &&
+         _source_text[idx_char] != 0x00 &&
+         strlen((char *) buff_tmp) < (sizeof(buff_tmp)-1)
+        ){
+            buff_tmp[idx_add]=_source_text[idx_char];
+            idx_char++;
+            idx_add++;
+        }
+        idx_char++;
+        if(memcmp(buff_tmp, _specific_word, strlen((char *) _specific_word)) == 0 && len_buff-idx_char > 2){
+			uint16_t i = 0;
+            for (i=idx_char; i<len_buff; i++){
+                if(_source_text[i] != _end_code){
+                    if (buffer_size < content_size + 1){
+                        buffer_size = buffer_size + 8;
+                        *_return = (unsigned char *) realloc(*_return, buffer_size * sizeof(char));
+                    }
+                    (*_return)[i-idx_char] = _source_text[i];
+                    (*_return)[(i-idx_char) + 1] = 0x00;
+                    content_size++;
+                }
+                else {
+                    break;
+                }
+            }
+            return 0;
+            break;
+        }
+    }
+    return -1;
+}
+
+void stcp_http_webserver_header_parser(){
+    uint16_t idx_char = 0;
+    uint16_t buffer_size = 8;
+    uint16_t content_size = 0;
+    uint16_t idx_content = 0;
+    char buffer[32];
+    memset(buffer, 0x00, sizeof(buffer));
+
+    stcp_debug(__func__, "INFO", "HEADER\n");
+    printf("%s\n", stcp_webserver_data.rcv_header);
+    memset(stcp_webserver_data.request, 0x00, sizeof(stcp_webserver_data.request));
+    /* GET REQUEST TYPE */
+    idx_content = 0;
+    while (stcp_webserver_data.rcv_header[idx_char] != ' ' && stcp_webserver_data.rcv_header[idx_char] != 0x00){
+        if (idx_content < sizeof(stcp_webserver_data.request) - 1){
+            stcp_webserver_data.request[idx_content] = stcp_webserver_data.rcv_header[idx_char];
+        }
+        idx_char++;
+        idx_content++;
+    }
+    idx_char++;
+    content_size = 2;
+    idx_content = 0;
+    stcp_debug(__func__, "INFO", "REQUEST: %s\n", stcp_webserver_data.request);
+    /* GET ENDPOINT */
+    while (stcp_webserver_data.rcv_header[idx_char] != ' ' && stcp_webserver_data.rcv_header[idx_char] != 0x00){
+        if (buffer_size < content_size){
+            buffer_size = buffer_size + 8;
+            stcp_webserver_data.rcv_endpoint = (char *) realloc(stcp_webserver_data.rcv_endpoint, buffer_size * sizeof(char));
+        }
+        stcp_webserver_data.rcv_endpoint[idx_content] = stcp_webserver_data.rcv_header[idx_char];
+        stcp_webserver_data.rcv_endpoint[idx_content + 1] = 0x00;
+        idx_char++;
+        content_size++;
+        idx_content++;
+    }
+    stcp_debug(__func__, "INFO", "ENDPOINT: %s\n", stcp_webserver_data.rcv_endpoint);
+    /* GET CONTENT TYPE */
+    if (strstr(stcp_webserver_data.rcv_header, "Content-Type:") != NULL){
+        if (stcp_http_webserver_header_get(
+         (unsigned char *) stcp_webserver_data.rcv_header,
+         (unsigned char *) "Content-Type:",
+         (unsigned char **) &stcp_webserver_data.rcv_content_type,
+         '\r') != 0){
+            strcpy(stcp_webserver_data.rcv_content_type, "failed");
+        }
+    }
+    else {
+        strcpy(stcp_webserver_data.rcv_content_type, "(null)");
+    }
+    stcp_debug(__func__, "INFO", "CONTENT TYPE: %s\n", stcp_webserver_data.rcv_content_type);
+    /* GET ACCEPTION TYPE */
+    if (strstr(stcp_webserver_data.rcv_header, "Accept:") != NULL){
+        if (stcp_http_webserver_header_get(
+         (unsigned char *) stcp_webserver_data.rcv_header,
+         (unsigned char *) "Accept:",
+         (unsigned char **) &stcp_webserver_data.rcv_acception_type,
+         '\r') != 0){
+            strcpy(stcp_webserver_data.rcv_acception_type, "failed");
+        }
+    }
+    else {
+        strcpy(stcp_webserver_data.rcv_acception_type, "(null)");
+    }
+    stcp_debug(__func__, "INFO", "ACCEPT: %s\n", stcp_webserver_data.rcv_acception_type);
+    /* GET AUTH */
+    if (strstr(stcp_webserver_data.rcv_header, "Authentication:") != NULL){
+        if (stcp_http_webserver_header_get(
+         (unsigned char *) stcp_webserver_data.rcv_header,
+         (unsigned char *) "Authentication:",
+         (unsigned char **) &stcp_webserver_data.rcv_auth,
+         '\r') != 0){
+            strcpy(stcp_webserver_data.rcv_auth, "failed");
+        }
+    }
+    else if (strstr(stcp_webserver_data.rcv_header, "Authorization:") != NULL){
+        if (stcp_http_webserver_header_get(
+         (unsigned char *) stcp_webserver_data.rcv_header,
+         (unsigned char *) "Authorization:",
+         (unsigned char **) &stcp_webserver_data.rcv_auth,
+         '\r') != 0){
+            strcpy(stcp_webserver_data.rcv_auth, "failed");
+        }
+    }
+    else {
+        strcpy(stcp_webserver_data.rcv_auth, "(null)");
+    }
+    stcp_debug(__func__, "INFO", "AUTH: %s\n", stcp_webserver_data.rcv_auth);
+    /* GET COOKIE */
+    if (strstr(stcp_webserver_data.rcv_header, "Cookie:") != NULL){
+        if (stcp_http_webserver_header_get(
+         (unsigned char *) stcp_webserver_data.rcv_header,
+         (unsigned char *) "Cookie:",
+         (unsigned char **) &stcp_webserver_data.rcv_cookies,
+         '\r') != 0){
+            strcpy(stcp_webserver_data.rcv_cookies, "failed");
+        }
+    }
+    else {
+        strcpy(stcp_webserver_data.rcv_cookies, "(null)");
+    }
+    stcp_debug(__func__, "INFO", "COOKIE: %s\n", stcp_webserver_data.rcv_cookies);
+    /* GET CONTENT LENTH */
+    stcp_webserver_data.content_length = (uint16_t) stcp_get_content_length(stcp_webserver_data.rcv_header);
+
+    stcp_debug(__func__, "INFO", "CONTENT LENGTH: %i\n", stcp_webserver_data.content_length);
+}
+
+static int8_t stcp_http_webserver_generate_header(char *_response_header, char *_content_type, char *_acception_type, uint16_t _content_length){
+    time_t stcp_time_access = 0;
+    struct tm *tm_access = NULL;
+    char *header_tmp = NULL;
+    time(&stcp_time_access);
+    tm_access = gmtime(&stcp_time_access);
+    char day_id[4];
+    char month_id[4];
+    memset(day_id, 0x00, sizeof(day_id));
+    memset(month_id, 0x00, sizeof(month_id));
+    switch (tm_access->tm_wday){
+        case 0:
+            strcpy(day_id, "Sun");
+        break;
+        case 1:
+            strcpy(day_id, "Mon");
+        break;
+        case 2:
+            strcpy(day_id, "Tue");
+        break;
+        case 3:
+            strcpy(day_id, "Wed");
+        break;
+        case 4:
+            strcpy(day_id, "Thu");
+        break;
+        case 5:
+            strcpy(day_id, "Fry");
+        break;
+        case 6:
+            strcpy(day_id, "Sat");
+        break;
+    }
+    switch (tm_access->tm_mon){
+        case 0:
+            strcpy(month_id, "Jan");
+        break;
+        case 1:
+            strcpy(month_id, "Feb");
+        break;
+        case 2:
+            strcpy(month_id, "Mar");
+        break;
+        case 3:
+            strcpy(month_id, "Apr");
+        break;
+        case 4:
+            strcpy(month_id, "May");
+        break;
+        case 5:
+            strcpy(month_id, "Jun");
+        break;
+        case 6:
+            strcpy(month_id, "Jul");
+        break;
+        case 7:
+            strcpy(month_id, "Aug");
+        break;
+        case 8:
+            strcpy(month_id, "Sep");
+        break;
+        case 9:
+            strcpy(month_id, "Oct");
+        break;
+        case 10:
+            strcpy(month_id, "Nov");
+        break;
+        case 11:
+            strcpy(month_id, "Dec");
+        break;
+    }
+    if (_content_length > 0){
+        header_tmp = (char *) stcp_http_content_generator(1024,
+         "HTTP/1.1 %s\r\n"
+         "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n"
+         "Content-Type: %s\r\n"
+         "Content-Length: %i\r\n"
+         "Server: stcp-webservice\r\n"
+         "Accept-Ranges: none\r\n"
+         "Accept: %s\r\n"
+         "Vary: Accept-Encoding\r\n"
+         "Connection: close\r\n"
+         "\r\n",
+         _response_header,
+         day_id, tm_access->tm_mday, month_id, (tm_access->tm_year + 1900), tm_access->tm_hour, tm_access->tm_min, tm_access->tm_sec,
+         _content_type,
+         _content_length,
+         _acception_type
+        );
+    }
+    else {
+        header_tmp = (char *) stcp_http_content_generator(1024,
+         "HTTP/1.1 %s\r\n"
+         "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n"
+         "Content-Type: %s\r\n"
+         "Server: stcp-webservice\r\n"
+         "Accept-Ranges: none\r\n"
+         "Accept: %s\r\n"
+         "Vary: Accept-Encoding\r\n"
+         "Connection: close\r\n"
+         "\r\n",
+         _response_header,
+         day_id, tm_access->tm_mday, month_id, (tm_access->tm_year + 1900), tm_access->tm_hour, tm_access->tm_min, tm_access->tm_sec,
+         _content_type,
+         _acception_type
+        );
+    }
+
+    if (header_tmp == NULL){
+        stcp_debug(__func__, "ERROR", "failed to generate webserver header\n");
+        return -1;
+    }
+
+    stcp_webserver_data.server_header = (char *) realloc(stcp_webserver_data.server_header, (strlen(header_tmp) + 1)*sizeof(char));
+    strcpy(stcp_webserver_data.server_header, header_tmp);
+
+    free(header_tmp);
+    header_tmp = NULL;
+
+    return 0;
+}
+
+int8_t stcp_http_webserver_add_negative_code_response(stcp_webserver_negative_code _code_param, char *_response_content){
+    SHLinkCustomData _data;
+    char data_key[4];
+    if (_code_param == STCP_401_UNAUTHOIZED){
+        strcpy(data_key, "401");
+    }
+    else if (_code_param == STCP_404_NOT_FOUND){
+        strcpy(data_key, "404");
+    }
+    else if (_code_param == STCP_405_METHOD_NOT_ALLOWED){
+        strcpy(data_key, "405");
+    }
+    else {
+        stcp_debug(__func__, "ERROR", "invalid parameters\n");
+        return -1;
+    }
+    if(shilink_fill_custom_data(&_data, data_key, _response_content, SL_TEXT) != 0){
+        stcp_debug(__func__, "ERROR", "failed to add response (1)\n");
+        return -2;
+    }
+    if (shilink_append(&webserver_list, _data) != 0){
+        stcp_debug(__func__, "ERROR", "failed to add response (2)\n");
+        shilink_free_custom_data(&_data);
+        return -2;
+    }
+    return 0;
+}
+
+int8_t stcp_http_webserver_add_response(char *_end_point, char *_response_content, char *_request_method){
+    SHLinkCustomData _data;
+    char data_key[strlen(_end_point) + strlen(_request_method) + 1];
+    memset(data_key, 0x00, sizeof(data_key));
+    sprintf(data_key, "%s%s", _request_method, _end_point);
+    if(shilink_fill_custom_data(&_data, data_key, _response_content, SL_TEXT) != 0){
+        stcp_debug(__func__, "ERROR", "failed to add response (1)\n");
+        return -1;
+    }
+    if (shilink_append(&webserver_list, _data) != 0){
+        stcp_debug(__func__, "ERROR", "failed to add response (2)\n");
+        shilink_free_custom_data(&_data);
+        return -1;
+    }
+    return 0;
+}
+
+int8_t stcp_http_webserver_add_response_file(char *_end_point, char *_response_file, char *_request_method){
+    SHLinkCustomData _data;
+    char data_key[strlen(_end_point) + strlen(_request_method) + 1];
+    char data_value[strlen(_response_file) + 11];
+    memset(data_key, 0x00, sizeof(data_key));
+    memset(data_value, 0x00, sizeof(data_value));
+    sprintf(data_key, "%s%s", _request_method, _end_point);
+    sprintf(data_value, "open_file:%s", _response_file);
+    if(shilink_fill_custom_data(&_data, data_key, data_value, SL_TEXT) != 0){
+        stcp_debug(__func__, "ERROR", "failed to add response (1)\n");
+        return -1;
+    }
+    if (shilink_append(&webserver_list, _data) != 0){
+        stcp_debug(__func__, "ERROR", "failed to add response (2)\n");
+        shilink_free_custom_data(&_data);
+        return -1;
+    }
+    return 0;
+}
+
+char *stcp_http_webserver_select_response(char *_respons_code){
+    SHLinkCustomData _data;
+    char data_key[strlen(stcp_webserver_data.request) + strlen(stcp_webserver_data.rcv_endpoint) + 1];
+    memset(data_key, 0x00, sizeof(data_key));
+    sprintf(data_key, "%s%s", stcp_webserver_data.request, stcp_webserver_data.rcv_endpoint);
+    if (shilink_search_data_by_position(webserver_list, data_key, 0, &_data) != 0){
+        if (strcmp("GET", stcp_webserver_data.request) != 0){
+            memset(data_key, 0x00, sizeof(data_key));
+            sprintf(data_key, "GET%s", stcp_webserver_data.rcv_endpoint);
+            if (shilink_search_data_by_position(webserver_list, data_key, 0, &_data) == 0){
+                goto next405;
+            }
+        }
+        if (strcmp("POST", stcp_webserver_data.request) != 0){
+            memset(data_key, 0x00, sizeof(data_key));
+            sprintf(data_key, "POST%s", stcp_webserver_data.rcv_endpoint);
+            if (shilink_search_data_by_position(webserver_list, data_key, 0, &_data) == 0){
+                goto next405;
+            }
+        }
+        if (strcmp("PUT", stcp_webserver_data.request) != 0){
+            memset(data_key, 0x00, sizeof(data_key));
+            sprintf(data_key, "PUT%s", stcp_webserver_data.rcv_endpoint);
+            if (shilink_search_data_by_position(webserver_list, data_key, 0, &_data) == 0){
+                goto next405;
+            }
+        }
+        if (strcmp("HEAD", stcp_webserver_data.request) != 0){
+            memset(data_key, 0x00, sizeof(data_key));
+            sprintf(data_key, "HEAD%s", stcp_webserver_data.rcv_endpoint);
+            if (shilink_search_data_by_position(webserver_list, data_key, 0, &_data) == 0){
+                goto next405;
+            }
+        }
+        if (strcmp("DELETE", stcp_webserver_data.request) != 0){
+            memset(data_key, 0x00, sizeof(data_key));
+            sprintf(data_key, "DELETE%s", stcp_webserver_data.rcv_endpoint);
+            if (shilink_search_data_by_position(webserver_list, data_key, 0, &_data) == 0){
+                goto next405;
+            }
+        }
+        if (strcmp("PATCH", stcp_webserver_data.request) != 0){
+            memset(data_key, 0x00, sizeof(data_key));
+            sprintf(data_key, "PATCH%s", stcp_webserver_data.rcv_endpoint);
+            if (shilink_search_data_by_position(webserver_list, data_key, 0, &_data) == 0){
+                goto next405;
+            }
+        }
+        if (strcmp("OPTIONS", stcp_webserver_data.request) != 0){
+            memset(data_key, 0x00, sizeof(data_key));
+            sprintf(data_key, "OPTIONS%s", stcp_webserver_data.rcv_endpoint);
+            if (shilink_search_data_by_position(webserver_list, data_key, 0, &_data) == 0){
+                goto next405;
+            }
+        }
+        strcpy(_respons_code, "404 Not Found");
+        if (shilink_search_data_by_position(webserver_list, "404", 0, &_data) != 0){
+            return NULL;
+        }
+        return _data.sl_value;
+        
+        next405 :
+            strcpy(_respons_code, "405 Method Not Allowed");
+            if (shilink_search_data_by_position(webserver_list, "405", 0, &_data) != 0){
+                return NULL;
+            }
+            return _data.sl_value;
+    }
+    strcpy(_respons_code, "200 OK");
+    return _data.sl_value;
+}
+
+int8_t stcp_http_webserver_set_content_type(char *_content_type){
+    stcp_webserver_header.content_type = (char *) realloc(stcp_webserver_header.content_type, (strlen(_content_type) + 1)*sizeof(char));
+    strcpy(stcp_webserver_header.content_type, _content_type);
+    return 0;
+}
+
+int8_t stcp_http_webserver_set_accept(char *_accept){
+    stcp_webserver_header.accept_type = (char *) realloc(stcp_webserver_header.accept_type, (strlen(_accept) + 1)*sizeof(char));
+    strcpy(stcp_webserver_header.accept_type, _accept);
+    return 0;
+}
+
+int8_t stcp_http_webserver_send_file(struct stcp_sock_data _init_data, char *_response_code, char *_file_name){
+    stcp_debug(__func__, "INFO", "file name: %s\n", _file_name);
+
+    FILE *stcp_file = NULL;
+    uint8_t try_times = 3;
+
+    do{
+    	stcp_file = fopen(_file_name, "r");
+        try_times--;
+    } while (stcp_file == NULL && try_times > 0);
+
+    if (stcp_file == NULL){
+        stcp_debug(__func__, "ERROR", "failed to open \"%s\"\n", _file_name);
+        if (stcp_http_webserver_generate_header(
+         _response_code,
+         stcp_webserver_header.content_type,
+         stcp_webserver_header.accept_type,
+         11) != 0
+        ){
+            return -1;
+        }
+        char *buffer_info;
+
+        buffer_info = stcp_http_content_generator(
+         (strlen(stcp_webserver_data.server_header) + 13),
+         "%snot found!\n", stcp_webserver_data.server_header
+        );
+        if (buffer_info == NULL){
+            stcp_debug(__func__, "ERROR", "failed to generate webserver content\n");
+            return -1;
+        }
+        stcp_send_data(_init_data, (unsigned char *) buffer_info, strlen(buffer_info));
+        free(buffer_info);
+        buffer_info = NULL;
+        return -2;
+    }
+
+    uint16_t content_size = 0;
+    fseek(stcp_file, 0L, SEEK_END);
+    content_size = ftell(stcp_file);
+
+    fseek(stcp_file, 0L, SEEK_SET);
+
+    if (stcp_http_webserver_generate_header(
+     _response_code,
+     stcp_webserver_header.content_type,
+     stcp_webserver_header.accept_type,
+     content_size) != 0
+    ){
+        fclose(stcp_file);
+        return -1;
+    }
+    stcp_send_data(_init_data, (unsigned char *) stcp_webserver_data.server_header, strlen(stcp_webserver_data.server_header));
+    
+    unsigned char file_content[64];
+    /*
+    while (fgets((char *) file_content, sizeof(file_content), stcp_file) != NULL){
+        if (stcp_send_data(_init_data, file_content, strlen((char *) file_content)) <= 0){
+            break;
+        }
+        for (int i=0; i<64; i++){
+            printf("0x%02x ", file_content[0x00])
+        }
+    }
+    fclose(stcp_file);
+    */
+    uint16_t size_recv = 0;
+    int8_t bytes = 0;
+    uint32_t total_size = 0;
+    unsigned char buff[2];
+    while((bytes = fread((unsigned char *) buff, 1, 1, stcp_file) >= 0)){
+		total_size = total_size + 1;
+        file_content[size_recv] = buff[0];
+        size_recv = size_recv + 1;
+        if (size_recv == sizeof(file_content) - 1 || bytes == 0){
+            if (stcp_send_data(_init_data, file_content, size_recv) <= 0){
+                break;
+            }
+            memset(file_content, 0x00, sizeof(file_content));
+            if (size_recv == 0){
+                break;
+            }
+            size_recv = 0;
+        }
+        if (total_size == content_size){
+            if (size_recv > 0){
+                if (stcp_send_data(_init_data, file_content, size_recv) <= 0){
+                    break;
+                }
+                memset(file_content, 0x00, sizeof(file_content));
+                if (size_recv == 0){
+                    break;
+                }
+                size_recv = 0;
+            }
+            break;
+        }
+        /*if ((content_size - total_size) < size_per_recv){
+            size_per_recv = content_size - total_size;
+        }*/
+	}
+    fclose(stcp_file);
+    return 0;
+}
+
+int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT){
+    if (stcp_webserver_init_state == 0){
+        stcp_debug(__func__, "ERROR", "web server not ready\n");
+        return -1;
+    }
+    struct stcp_sock_data init_data;
+    fd_set readfds;
+
+    char *buffer = NULL;
+    uint16_t buffer_size = SIZE_PER_RECV;
+    buffer = (char *) malloc(buffer_size * sizeof(char));
+    if (buffer == NULL){
+        stcp_debug(__func__, "ERROR", "failed to allocate memory\n");
+        close(init_data.socket_f);
+        init_data.socket_f = -1;
+        return -1;
+    }
+    socklen_t len;
+    struct sockaddr_in servaddr, cli;
+    init_data.socket_f = socket(AF_INET, SOCK_STREAM, 0); 
+    if (init_data.socket_f == -1) {
+        stcp_debug(__func__, "CRITICAL", "socket creation failed...\n");
+        stcp_http_webserver_free();
+        free(buffer);
+        buffer = NULL;
+        return -1;
+    }
+    stcp_debug(__func__, "INFO", "Socket successfully created : %d\n", init_data.socket_f);
+    memset(&servaddr, 0x00, sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(PORT);
+    if(stcp_check_ip(ADDRESS) != 0){
+        struct hostent *host;
+        host = gethostbyname(ADDRESS);
+        if (host != NULL){
+            servaddr.sin_addr.s_addr = inet_addr(inet_ntoa(*((struct in_addr*) host->h_addr_list[0])));
+        }
+        else {
+            stcp_debug(__func__, "ERROR", "failed to get host by name\n", ADDRESS);
+            close(init_data.socket_f);
+            init_data.socket_f = -1;
+            stcp_http_webserver_free();
+            free(buffer);
+            buffer = NULL;
+            return -2;
+        }
+    }
+    else {
+        servaddr.sin_addr.s_addr = inet_addr(ADDRESS);
+    }
+
+    const int optVal = 1;
+    const socklen_t optLen = sizeof(optVal);
+    setsockopt(init_data.socket_f, SOL_SOCKET, SO_REUSEADDR, (void*) &optVal, optLen);
+            
+    if ((bind(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr))) != 0) { 
+        stcp_debug(__func__, "CRITICAL", "socket bind failed...\n");
+        if (infinite_retry_mode == 1) stcp_debug(__func__, "INFO", "trying to create a socket...\n");
+        close(init_data.socket_f);
+        init_data.socket_f = 0;
+        stcp_http_webserver_free();
+        free(buffer);
+        buffer = NULL;
+        return -2;
+    }
+    stcp_debug(__func__, "INFO", "Socket successfully binded..\n");
+    if ((listen(init_data.socket_f, 5)) != 0) { 
+        stcp_debug(__func__, "CRITICAL", "Listen failed...\n");
+        close(init_data.socket_f);
+        init_data.socket_f = 0;
+        stcp_http_webserver_free();
+        free(buffer);
+        buffer = NULL;
+        return -2;
+    }
+    stcp_debug(__func__, "WEBSERVER INFO", "Server listening..\n"); 
+    len = sizeof(cli);
+
+    int client_fd[MAX_CLIENT];
+    memset(client_fd, 0x00, sizeof(client_fd));
+
+    memset(buffer, 0x00, buffer_size*sizeof(char));
+
+    int16_t stcp_bytes = 0;
+    uint16_t stcp_size = 8;
+    uint16_t idx_chr = 0;
+    uint16_t max_sd = 0;
+    uint16_t idx_client = 0;
+    int16_t activity = 0;
+    int8_t proc_state = STCP_PROCESS_GET_HEADER;
+    stcp_server_state = STCP_SERVER_RUNING;
+
+    char response_code[32];
+
+    while (stcp_server_state == STCP_SERVER_RUNING){
+        FD_ZERO(&readfds);   
+        FD_SET(init_data.socket_f, &readfds);   
+        max_sd = init_data.socket_f;   
+             
+        //add child sockets to set  
+        for ( idx_client = 0 ; idx_client < MAX_CLIENT ; idx_client++){     
+            if(client_fd[idx_client] > 0){
+                FD_SET(client_fd[idx_client] , &readfds);
+            }
+            if(client_fd[idx_client] > max_sd){
+                max_sd = client_fd[idx_client];   
+            }
+        }
+
+        activity = select(max_sd + 1 , &readfds , NULL , NULL , NULL);
+        if ((activity < 0) && (errno!=EINTR))   
+        {
+            stcp_debug(__func__, "ERROR", "select error\n");
+        }
+
+        if (FD_ISSET(init_data.socket_f, &readfds))   
+        {   
+            if ((init_data.connection_f = accept(init_data.socket_f, (SA*)&cli, &len))<0){   
+                stcp_debug(__func__, "ERROR", "accept error\n");
+                break;
+            }
+            stcp_debug(__func__, "WEBSERVER INFO", "new connection (%d) %s:%d\n" ,
+             init_data.connection_f, inet_ntoa(cli.sin_addr), ntohs(cli.sin_port)
+            );
+            for (idx_client = 0; idx_client < MAX_CLIENT; idx_client++){
+                if(client_fd[idx_client] == 0 ){
+                    client_fd[idx_client] = init_data.connection_f;
+                    break;   
+                }   
+            }   
+        }
+        for (idx_client = 0; idx_client < MAX_CLIENT; idx_client++){
+            init_data.connection_f = client_fd[idx_client];
+            if (FD_ISSET(init_data.connection_f , &readfds))   
+            {
+                stcp_bytes = 0;
+                stcp_size = 8;
+                idx_chr = 0;
+                stcp_http_webserver_bzero();
+                proc_state = STCP_PROCESS_GET_HEADER;
+                while(1){
+                    if (proc_state == STCP_PROCESS_GET_HEADER){
+                        stcp_bytes = stcp_recv_data(init_data, (unsigned char *) buffer, buffer_size);
+                        if (stcp_bytes <= 0){
+                            stcp_debug(__func__, "WEBSERVER INFO", "Lost Connection..\n");
+                            break;
+                        }
+                        else {
+                            while (stcp_size < (idx_chr + stcp_bytes) + 2){
+                                stcp_size = stcp_size + 8;
+                                if (stcp_size >= idx_chr + 2){
+                                    stcp_webserver_data.rcv_header = (char *) realloc(stcp_webserver_data.rcv_header, stcp_size*sizeof(char));
+                                }
+                            }
+                            memcpy(stcp_webserver_data.rcv_header + idx_chr, buffer, stcp_bytes);
+                            if (idx_chr > 4 || stcp_bytes > 4){
+                                do {
+                                    if(stcp_webserver_data.rcv_header[idx_chr - 1] == '\n' && stcp_webserver_data.rcv_header[idx_chr - 2] == '\r' &&
+                                     stcp_webserver_data.rcv_header[idx_chr - 3] == '\n' && stcp_webserver_data.rcv_header[idx_chr - 4] == '\r'
+                                    ){
+                                        if (stcp_bytes > 0){
+                                            stcp_size = stcp_bytes + 1;
+                                            stcp_webserver_data.rcv_content = (char *) realloc(stcp_webserver_data.rcv_content, stcp_size*sizeof(char));
+                                            memset(stcp_webserver_data.rcv_content, 0x00, stcp_size);
+                                            memcpy(stcp_webserver_data.rcv_content, stcp_webserver_data.rcv_header + idx_chr, stcp_bytes);
+                                            stcp_webserver_data.rcv_header[idx_chr] = 0x00;
+                                            stcp_webserver_data.rcv_header = (char *) realloc(stcp_webserver_data.rcv_header, (idx_chr + 1)*sizeof(char));
+                                        }
+                                        else {
+                                            stcp_webserver_data.rcv_header[idx_chr] = 0x00;
+                                        }
+                                        stcp_http_webserver_header_parser();
+                                        proc_state = STCP_PROCESS_GET_CONTENT;
+                                        idx_chr = stcp_bytes;
+                                        break;
+                                    }
+                                    idx_chr++;
+                                    if (stcp_bytes > 0){
+                                        stcp_bytes--;
+                                    }
+                                } while (stcp_bytes >= 0);
+                            }
+                            if ((stcp_webserver_data.content_length == 0 || (idx_chr + 1) >= stcp_webserver_data.content_length) &&
+                             proc_state == STCP_PROCESS_GET_CONTENT
+                            ){
+                                break;
+                            }
+                            else {
+                                stcp_webserver_data.rcv_header[idx_chr + 1] = 0x00;
+                            }
+                        }
+                    }
+                    else{
+                        stcp_bytes = stcp_recv_data(init_data, (unsigned char *) buffer, stcp_webserver_data.content_length);
+                        if (stcp_bytes <= 0){
+                            stcp_debug(__func__, "WEBSERVER INFO", "Lost Connection..\n");
+                            break;
+                        }
+                        else {
+                            while (stcp_size < (idx_chr + stcp_bytes) + 2){
+                                stcp_size = stcp_size + 8;
+                                if (stcp_size >= idx_chr + 2){
+                                    stcp_webserver_data.rcv_content = (char *) realloc(stcp_webserver_data.rcv_content, stcp_size*sizeof(char));
+                                }
+                            }
+                            memcpy(stcp_webserver_data.rcv_content + idx_chr, buffer, stcp_bytes);
+                            idx_chr = idx_chr + stcp_bytes;
+                            stcp_webserver_data.rcv_content[idx_chr + 1] = 0x00;
+                        }
+                        if (stcp_webserver_data.content_length > 0 && (idx_chr + 1) >= stcp_webserver_data.content_length){
+                            break;
+                        }
+                    }
+                }
+                if (strlen(stcp_webserver_data.rcv_content) > 0){
+                    printf("Content:\n%s\n", stcp_webserver_data.rcv_content);
+                }
+                /* USER PURPOSE START HERE*/
+                char *response_content = NULL;
+                char *buffer_info = NULL;
+                memset(response_code, 0x00, sizeof(response_code));
+                response_content = stcp_http_webserver_select_response(response_code);
+                if (response_content == NULL) {
+                    if (stcp_http_webserver_generate_header(
+                     response_code,
+                     stcp_webserver_header.content_type,
+                     stcp_webserver_header.accept_type,
+                     0) != 0
+                    ){
+                        break;
+                    }
+                    buffer_info = stcp_http_content_generator(
+                     1024,
+                     "%scheck header!\r\n", stcp_webserver_data.server_header
+                    );
+                    if (buffer_info == NULL){
+                        stcp_debug(__func__, "ERROR", "failed to generate webserver content\n");
+                        break;
+                    }
+                    stcp_send_data(init_data, (unsigned char *) buffer_info, strlen(buffer_info));
+                    free(buffer_info);
+                    buffer_info = NULL;
+                }
+                else if (strncmp(response_content, "open_file:", 10) != 0){
+                    if (stcp_http_webserver_generate_header(
+                     response_code,
+                     stcp_webserver_header.content_type,
+                     stcp_webserver_header.accept_type,
+                     strlen(response_content)) != 0
+                    ){
+                        break;
+                    }
+                    buffer_info = stcp_http_content_generator(
+                     (strlen(stcp_webserver_data.server_header) + strlen(response_content) + 2),
+                     "%s%s", stcp_webserver_data.server_header, response_content
+                    );
+                    if (buffer_info == NULL){
+                        stcp_debug(__func__, "ERROR", "failed to generate webserver content\n");
+                        break;
+                    }
+                    stcp_send_data(init_data, (unsigned char *) buffer_info, strlen(buffer_info));
+                    free(buffer_info);
+                    buffer_info = NULL;
+                }
+                else {
+                    char content_file_name[strlen(response_content) - 9];
+                    memset(content_file_name, 0x00, sizeof(content_file_name));
+                    memcpy(content_file_name, response_content + 10, (strlen(response_content) - 10));
+                    if (stcp_http_webserver_send_file(init_data, response_code, content_file_name) == -1){
+                        break;
+                    }
+                }
+                /* USER PURPOSE END HERE */
+                close(init_data.connection_f);
+                client_fd[idx_client] = 0;
+            }
+        }
+    }
+    stcp_http_webserver_free();
+    free(buffer);
+    buffer = NULL;
+    stcp_close(&init_data);
+    return 0;
+}
+#endif
 
 struct stcp_sock_data stcp_client_init(char *ADDRESS, uint16_t PORT){
     struct stcp_sock_data init_data;
@@ -828,7 +1889,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         );
     }
     stcp_debug(__func__, "INFO", "HTTP Request:\n");
-    if (debug_mode_status == STCP_DEBUG_ON){
+    if (stcp_debug_mode_status == STCP_DEBUG_ON){
         printf("%s\n", message_request);
     }
 
