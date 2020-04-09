@@ -10,6 +10,11 @@
   #include <openssl/ssl.h>
 #endif
 
+#ifdef __STCP_WEBSERVER__
+  #include "../shiki-linked-list/shiki-linked-list.h"
+  typedef SHLink stcpWList;
+#endif
+
 #define INFINITE_RETRY 1
 #define WITHOUT_RETRY 0
 #define STCP_DEBUG_ON 1
@@ -23,6 +28,8 @@ struct stcp_sock_data{
     SSL *ssl_connection_f;
   #endif
 };
+
+typedef struct stcp_sock_data stcpSock;
 
 #ifdef __STCP_PING__
   struct stcp_ping_summary{
@@ -43,6 +50,29 @@ struct stcp_sock_data{
     STCP_404_NOT_FOUND = 2,
     STCP_405_METHOD_NOT_ALLOWED = 3
   } stcp_webserver_negative_code;
+
+  struct stcp_webserver_info{
+    char *server_header;
+    char *auth_end_point;
+    char request[8];
+    char *rcv_header;
+    char *rcv_endpoint;
+    char *rcv_content_type;
+    char *rcv_acception_type;
+    char *rcv_auth;
+    char *rcv_cookies;
+    char *rcv_content;
+    char *ipaddr;
+    uint16_t content_length;
+  };
+
+  struct stcp_webserver_header{
+    char *content_type;
+    char *accept_type;
+  };
+
+  typedef struct stcp_webserver_info stcpWInfo;
+  typedef struct stcp_webserver_header stcpWHead;
 #endif
 
 typedef enum {
@@ -61,6 +91,8 @@ typedef enum{
   STCP_SET_INFINITE_MODE_RETRY = 4
 } stcp_setup_parameter;
 
+void stcp_debug(const char *function_name, char *debug_type, char *debug_msg, ...);
+
 void stcp_view_version();
 long stcp_get_version(char *_version);
 int8_t stcp_setup(stcp_setup_parameter _setup_parameter, int16_t _value);
@@ -75,21 +107,25 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, int16_t _value);
   infinite_retry_mode : fill with INFINITE_RETRY for infinite init purpose (end when init success)
   debug_mode : parameter for enable or disable debug information
 */
-struct stcp_sock_data stcp_client_init(char *ADDRESS, uint16_t PORT);
-struct stcp_sock_data stcp_server_init(char *ADDRESS, uint16_t PORT);
+stcpSock stcp_client_init(char *ADDRESS, uint16_t PORT);
+stcpSock stcp_server_init(char *ADDRESS, uint16_t PORT);
 
 #ifdef __STCP_WEBSERVER__
-int8_t stcp_http_webserver_init();
-int8_t stcp_http_webserver_add_negative_code_response(stcp_webserver_negative_code _code_param, char *_response_content);
-int8_t stcp_http_webserver_add_response(char *_end_point, char *_response_content, char *_request_method);
-int8_t stcp_http_webserver_add_response_file(char *_end_point, char *_response_file, char *_request_method);
-int8_t stcp_http_webserver_set_content_type(char *_content_type);
-int8_t stcp_http_webserver_set_accept(char *_accept);
-int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT);
+int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList _stcpWList);
+int8_t stcp_http_webserver_add_negative_code_response(stcpWList _stcpWList, stcp_webserver_negative_code _code_param, char *_response_content);
+int8_t stcp_http_webserver_add_response(stcpWList _stcpWList, char *_end_point, char *_response_content, char *_request_method);
+int8_t stcp_http_webserver_add_response_file(stcpWList _stcpWList, char *_end_point, char *_response_file, char *_request_method);
+int8_t stcp_http_webserver_add_response_function(stcpWList _stcpWList, char *_end_point, char *_response_function, char *_request_method);
+int8_t stcp_http_webserver_set_content_type(stcpWHead *_stcpWH, char *_content_type);
+int8_t stcp_http_webserver_set_accept(stcpWHead *_stcpWH, char *_accept);
+int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList _stcpWList);
+
+int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_header, char *_content_type, char *_acception_type, uint16_t _content_length);
+int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, stcpWHead *_stcpWH, char *_response_code, char *_file_name);
 #endif
 
 #ifdef __STCP_SSL__
-  struct stcp_sock_data stcp_ssl_client_init(char *ADDRESS, uint16_t PORT);
+  stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT);
 #endif
 
 /*
@@ -105,22 +141,22 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT);
   return success : >= 0
   return fail : -1
 */
-int16_t stcp_send_data(struct stcp_sock_data com_data, unsigned char* buff, int16_t size_set);
-int16_t stcp_recv_data(struct stcp_sock_data com_data, unsigned char* buff, int16_t size_set);
+int16_t stcp_send_data(stcpSock com_data, unsigned char* buff, int16_t size_set);
+int16_t stcp_recv_data(stcpSock com_data, unsigned char* buff, int16_t size_set);
 
 #ifdef __STCP_SSL__
-  int16_t stcp_ssl_send_data(struct stcp_sock_data com_data, unsigned char* buff, int16_t size_set);
-  int16_t stcp_ssl_recv_data(struct stcp_sock_data com_data, unsigned char* buff, int16_t size_set);
+  int16_t stcp_ssl_send_data(stcpSock com_data, unsigned char* buff, int16_t size_set);
+  int16_t stcp_ssl_recv_data(stcpSock com_data, unsigned char* buff, int16_t size_set);
 #endif
 
 int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_point, uint16_t *_port);
 char *stcp_http_content_generator(uint16_t _sizeof_content, char *_content_format, ...);
 unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_content, stcp_request_type _request_type);
 
-void stcp_close(struct stcp_sock_data *init_data);
+void stcp_close(stcpSock *init_data);
 
 #ifdef __STCP_SSL__
-  void stcp_ssl_close(struct stcp_sock_data *init_data);
+  void stcp_ssl_close(stcpSock *init_data);
 #endif
 
 /* ADDITIONAL PURPOSE */
