@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.01.20.03.23
+    ver         : 3.02.20.04.10
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -22,6 +22,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/select.h>
+#include <sys/ioctl.h>
 #include <fcntl.h>
 #include <errno.h>
 #include "shiki-tcp-ip-tools.h"
@@ -58,6 +59,7 @@ uint16_t SIZE_PER_RECV = 128;
 
 int8_t stcp_debug_mode_status = STCP_DEBUG_OFF;
 int8_t infinite_retry_mode = WITHOUT_RETRY;
+uint8_t max_recv_try_times = 3;
 uint16_t time_out_in_seconds = 0;
 uint16_t time_out_in_milliseconds = 0;
 char stcp_file_name[STCP_MAX_LENGTH_FILE_NAME];
@@ -902,7 +904,7 @@ int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_h
          "Accept-Ranges: none\r\n"
          "Accept: %s\r\n"
          "Vary: Accept-Encoding\r\n"
-         "Connection: close\r\n"
+         "Connection: keep-alive\r\n"
          "\r\n",
          _response_header,
          day_id, tm_access->tm_mday, month_id, (tm_access->tm_year + 1900), tm_access->tm_hour, tm_access->tm_min, tm_access->tm_sec,
@@ -920,7 +922,7 @@ int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_h
          "Accept-Ranges: none\r\n"
          "Accept: %s\r\n"
          "Vary: Accept-Encoding\r\n"
-         "Connection: close\r\n"
+         "Connection: keep-alive\r\n"
          "\r\n",
          _response_header,
          day_id, tm_access->tm_mday, month_id, (tm_access->tm_year + 1900), tm_access->tm_hour, tm_access->tm_min, tm_access->tm_sec,
@@ -1353,7 +1355,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
         FD_SET(init_data.socket_f, &readfds);   
         max_sd = init_data.socket_f;   
              
-        //add child sockets to set  
+        /* add child sockets to set */
         for ( idx_client = 0 ; idx_client < MAX_CLIENT ; idx_client++){     
             if(client_fd[idx_client] > 0){
                 FD_SET(client_fd[idx_client] , &readfds);
@@ -1406,7 +1408,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                             while (stcp_size < (idx_chr + stcp_bytes) + 2){
                                 stcp_size = stcp_size + 8;
                                 if (stcp_size >= idx_chr + 2){
-                                    _stcpWI->rcv_header = (char *) realloc(_stcpWI->rcv_header, stcp_size*sizeof(char));
+                                    _stcpWI->rcv_header = (char *) realloc(_stcpWI->rcv_header, (stcp_size + 1)*sizeof(char));
                                 }
                             }
                             memcpy(_stcpWI->rcv_header + idx_chr, buffer, stcp_bytes);
@@ -1432,9 +1434,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                                         break;
                                     }
                                     idx_chr++;
-                                    if (stcp_bytes > 0){
-                                        stcp_bytes--;
-                                    }
+                                    stcp_bytes--;
                                 } while (stcp_bytes >= 0);
                             }
                             if ((_stcpWI->content_length == 0 || (idx_chr + 1) >= _stcpWI->content_length) &&
@@ -1472,7 +1472,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 if (strlen(_stcpWI->rcv_content) > 0){
                     printf("Content:\n%s\n", _stcpWI->rcv_content);
                 }
-                /* USER PURPOSE START HERE*/
+                
                 char *response_content = NULL;
                 char *buffer_info = NULL;
                 memset(response_code, 0x00, sizeof(response_code));
@@ -1485,7 +1485,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                      _stcpWH->accept_type,
                      0) != 0
                     ){
-                        break;
+                        goto close_client;
                     }
                     buffer_info = stcp_http_content_generator(
                      1024,
@@ -1493,7 +1493,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                     );
                     if (buffer_info == NULL){
                         stcp_debug(__func__, "ERROR", "failed to generate webserver content\n");
-                        break;
+                        goto close_client;
                     }
                     stcp_send_data(init_data, (unsigned char *) buffer_info, strlen(buffer_info));
                     free(buffer_info);
@@ -1504,7 +1504,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                     memset(content_file_name, 0x00, sizeof(content_file_name));
                     memcpy(content_file_name, response_content + 10, (strlen(response_content) - 10));
                     if (stcp_http_webserver_send_file(init_data, _stcpWI, _stcpWH, response_code, content_file_name) == -1){
-                        break;
+                        goto close_client;
                     }
                 }
                 else if (strncmp(response_content, "call_func:", 10) == 0){
@@ -1512,7 +1512,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                     memset(func_name, 0x00, sizeof(func_name));
                     memcpy(func_name, response_content + 10, (strlen(response_content) - 10));
                     if (stcp_http_webserver_function_select(init_data, _stcpWI, _stcpWH, _stcpWList, response_code, func_name) == -1){
-                        break;
+                        goto close_client;
                     }
                 }
                 else {
@@ -1523,7 +1523,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                      _stcpWH->accept_type,
                      strlen(response_content)) != 0
                     ){
-                        break;
+                        goto close_client;
                     }
                     buffer_info = stcp_http_content_generator(
                      (strlen(_stcpWI->server_header) + strlen(response_content) + 2),
@@ -1531,15 +1531,16 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                     );
                     if (buffer_info == NULL){
                         stcp_debug(__func__, "ERROR", "failed to generate webserver content\n");
-                        break;
+                        goto close_client;
                     }
                     stcp_send_data(init_data, (unsigned char *) buffer_info, strlen(buffer_info));
                     free(buffer_info);
                     buffer_info = NULL;
                 }
-                /* USER PURPOSE END HERE */
-                close(init_data.connection_f);
-                client_fd[idx_client] = 0;
+                
+                close_client:
+                    close(init_data.connection_f);
+                    client_fd[idx_client] = 0;
             }
         }
     }
@@ -1700,6 +1701,28 @@ stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
 
 int16_t stcp_send_data(stcpSock com_data, unsigned char* buff, int16_t size_set){
     int16_t bytes;
+    int32_t bytes_aviable = 0;
+    uint16_t timeout_cstart = 0;
+    uint16_t timeout_cvalue = 0;
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    timeout_cstart = ((tv.tv_sec%60)*1000 + tv.tv_usec/1000);
+    if (time_out_in_seconds == 0 && time_out_in_milliseconds == 0){
+        timeout_cvalue = 3000;
+    }
+    else {
+        timeout_cvalue = (uint16_t) (time_out_in_seconds*1000 + time_out_in_milliseconds);
+    }
+    do {
+        ioctl(com_data.connection_f, TIOCOUTQ, &bytes_aviable);
+        if (bytes_aviable > 0){
+            gettimeofday(&tv, NULL);
+            if ((uint16_t)(((tv.tv_sec%60)*1000 + tv.tv_usec/1000) - timeout_cstart) > timeout_cvalue){
+                stcp_debug(__func__, "WARNING", "send 0 data. request timeout\n");
+                return -1;
+            }
+        }
+    } while (bytes_aviable > 0);
     bytes = write(com_data.connection_f, buff, size_set*sizeof(char));
     if (bytes >= 0) stcp_debug(__func__, "INFO", "success to send %d data\n", bytes);
     else if (time_out_in_seconds > 0 || time_out_in_milliseconds > 0){
@@ -2088,86 +2111,131 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
     end_point = NULL;
 
     int16_t bytes = 0;
-    int16_t total_bytes = 0;
+    uint32_t total_bytes = 0;
+    uint32_t total_bytes_tmp = 0;
     int8_t header_check_status = STCP_HEADER_CHECK;
     int8_t get_process = STCP_PROCESS_GET_HEADER;
     uint32_t content_length = 0;
     uint32_t download_counter = 0;
+    uint8_t recv_trytimes = 0;
+
+    unsigned char *response_tmp = NULL;
+    response_tmp = (unsigned char *) malloc((SIZE_PER_RECV + 1) * sizeof(unsigned char));
+    if (response_tmp == NULL){
+        free(protocol);
+        free(response);
+        protocol = NULL;
+        response = NULL;
+        stcp_debug(__func__, "ERROR", "failed to allocate response_tmp memory\n");
+        return 0;
+    }
+
     memset(response, 0x00, 2 * sizeof(char));
     do {
-        unsigned char response_tmp[SIZE_PER_RECV + 1];
         memset(response_tmp, 0x00, SIZE_PER_RECV + 1);
-        if (get_process == STCP_PROCESS_GET_HEADER){
-            if (strcmp(protocol, "http") == 0){
-                bytes = stcp_recv_data(socket_f, response_tmp, 1);
-            }
-            else {
-                #ifdef __STCP_SSL__
-                bytes = stcp_ssl_recv_data(socket_f, response_tmp, 1);
-                #endif
-            }
-            if (bytes == -1){
-                if (strlen((char *)response) < 5 && SIZE_PER_RECV > 1)
-                stcp_debug(__func__, "ERROR", "Lost Connection\n");
-                break;
-            }
-            else if (bytes == 0){
-                break;
-            }
+        if (strcmp(protocol, "http") == 0){
+            bytes = stcp_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
         }
-        else if (STCP_PROCESS_GET_CONTENT){
-            if (strcmp(protocol, "http") == 0){
-                bytes = stcp_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
-            }
-            else {
-                #ifdef __STCP_SSL__
-                bytes = stcp_ssl_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
-                #endif
-            }
-            if (bytes == -1){
-                stcp_debug(__func__, "ERROR", "Lost Connection\n");
+        else {
+            #ifdef __STCP_SSL__
+            bytes = stcp_ssl_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
+            #endif
+        }
+        if (bytes == -1){
+            stcp_debug(__func__, "ERROR", "Lost Connection\n");
+            break;
+        }
+        else if (bytes == 0){
+            if (recv_trytimes == max_recv_try_times) {
+                recv_trytimes = 0;
                 break;
             }
-            else if (bytes == 0){
-                break;
-            }
+            recv_trytimes++;
+            goto try_recv;
+        }
+        else if (recv_trytimes > 0){
+            stcp_debug(__func__, "INFO", "reset recv try counter to zero\n");
+            recv_trytimes = 0;
         }
         if (_request_type != STCP_REQ_DOWNLOAD_CONTENT || get_process == STCP_PROCESS_GET_HEADER){
-            total_bytes = total_bytes + bytes;
-            response = (unsigned char *) realloc(response, (total_bytes + 1) * sizeof(unsigned char));
-            memcpy(response + (total_bytes - bytes), response_tmp, bytes);
-            response[total_bytes] = 0x00;
+            total_bytes_tmp = total_bytes_tmp + bytes;
+            response = (unsigned char *) realloc(response, (total_bytes + bytes + 1) * sizeof(unsigned char));
+            memcpy(response + total_bytes, response_tmp, bytes);
+            response[total_bytes_tmp] = 0x00;
             if (get_process == STCP_PROCESS_GET_HEADER){
-                if( response[total_bytes - 1] == '\n' && response[total_bytes - 2] == '\r' &&
-                 response[total_bytes - 3] == '\n' && response[total_bytes - 4] == '\r'
-                ){
-                    if (_request_type == STCP_REQ_HEADER_ONLY){
-                        break;
+                if (total_bytes > 4 || bytes > 4){
+                    if ((total_bytes > 20 || bytes > 20) && header_check_status == STCP_HEADER_CHECK){
+                        if (strstr((char *) response, "200 OK") == NULL){
+                            header_check_status = STCP_HEADER_BLOCK;
+                            total_bytes = 0;
+                            do {
+                                total_bytes++;
+                            } while(response[total_bytes] != '\r');
+                            response[total_bytes] = 0x00;
+                            response = (unsigned char *) realloc(response, (total_bytes + 1)*sizeof(unsigned char));
+                            break;
+                        }
+                        else if (_request_type == STCP_REQ_HTTP_STATUS_ONLY){
+                            total_bytes = 0;
+                            do {
+                                total_bytes++;
+                            } while(response[total_bytes] != '\r');
+                            response[total_bytes] = 0x00;
+                            response = (unsigned char *) realloc(response, (total_bytes + 1)*sizeof(unsigned char));
+                            break;
+                        }
+                        else {
+                            header_check_status = STCP_HEADER_PASS;
+                        }
                     }
-                    get_process = STCP_PROCESS_GET_CONTENT;
-                    content_length = stcp_get_content_length((char *) response);
-                }
-                if (response_tmp[0] == '\n' && header_check_status == STCP_HEADER_CHECK){
-                    if (strstr((char *) response, "200 OK") == NULL){
-                        header_check_status = STCP_HEADER_BLOCK;
-                        break;
-                    }
-                    else if (_request_type == STCP_REQ_HTTP_STATUS_ONLY){
-                        break;
-                    }
-                    else {
-                        header_check_status = STCP_HEADER_PASS;
-                    }
+                    total_bytes = 4;
+                    bytes = bytes - 4;
+                    do {
+                        if(response[total_bytes - 1] == '\n' && response[total_bytes - 2] == '\r' &&
+                         response[total_bytes - 3] == '\n' && response[total_bytes - 4] == '\r'
+                        ){
+                            if (_request_type == STCP_REQ_HEADER_ONLY){
+                                response[total_bytes] = 0x00;
+                                response = (unsigned char *) realloc(response, (total_bytes + 1)*sizeof(unsigned char));
+                                break;
+                            }
+                            get_process = STCP_PROCESS_GET_CONTENT;
+                            content_length = stcp_get_content_length((char *) response);
+
+                            if (bytes > 0){
+                                if (_request_type == STCP_REQ_DOWNLOAD_CONTENT){
+                                    /* append file */
+                                    if (download_file == NULL){
+                                        stcp_debug(__func__, "ERROR", "failed to open config file\n");
+                                    }
+                                    else {
+                                        memset(response_tmp, 0x00, (SIZE_PER_RECV + 1)*sizeof(char));
+                                        memcpy(response_tmp, response + total_bytes, bytes);
+                                        fprintf(download_file, "%s", response_tmp);
+                                    }
+                                    response[total_bytes] = 0x00;
+                                    response = (unsigned char *) realloc(response, (total_bytes + 1)*sizeof(unsigned char));
+                                }
+                            }
+                            break;
+                        }
+                        total_bytes++;
+                        bytes--;
+                    } while (bytes >= 0);
                 }
             }
-            else {
+            total_bytes = total_bytes_tmp;
+            if (get_process == STCP_PROCESS_GET_CONTENT && bytes > 0) {
                 download_counter = download_counter + bytes;
                 if (content_length > 0){
                     stcp_debug(__func__, "INFO", "get: %i/%i bytes\n", download_counter, content_length);
                 }
-                else {
+                else{
                     stcp_debug(__func__, "INFO", "get: %i/unknown bytes\n", download_counter);
                 }
+            }
+            else if (get_process == STCP_PROCESS_GET_CONTENT){
+                bytes = 1;
             }
         }
         else if (_request_type == STCP_REQ_DOWNLOAD_CONTENT && get_process == STCP_PROCESS_GET_CONTENT){
@@ -2193,7 +2261,12 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         if (content_length > 0 && download_counter == content_length){
             break;
         }
-    } while (bytes >= 1);
+
+        try_recv:
+            if(bytes == 0){
+                stcp_debug(__func__, "WARNING", "try recv process (%i/%i)\n", recv_trytimes, max_recv_try_times);
+            }
+    } while (bytes >= 0);
     if (strcmp(protocol, "http") == 0){
         stcp_close(&socket_f);
     }
@@ -2221,6 +2294,8 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
             stcp_debug(__func__, "DOWNLOAD", "downloaded finished: %i/unknown bytes\n", __func__, download_counter);
         }
     }
+    free(response_tmp);
+    response_tmp = NULL;
     if (strlen((char *) response) == 0){
         if (time_out_in_seconds == 0){
             response = (unsigned char *) realloc(response, 30*sizeof(unsigned char));
