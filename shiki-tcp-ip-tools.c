@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.02.20.04.10
+    ver         : 3.03.20.04.17
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -904,7 +904,7 @@ int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_h
          "Accept-Ranges: none\r\n"
          "Accept: %s\r\n"
          "Vary: Accept-Encoding\r\n"
-         "Connection: keep-alive\r\n"
+         "Connection: close\r\n"
          "\r\n",
          _response_header,
          day_id, tm_access->tm_mday, month_id, (tm_access->tm_year + 1900), tm_access->tm_hour, tm_access->tm_min, tm_access->tm_sec,
@@ -922,7 +922,7 @@ int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_h
          "Accept-Ranges: none\r\n"
          "Accept: %s\r\n"
          "Vary: Accept-Encoding\r\n"
-         "Connection: keep-alive\r\n"
+         "Connection: close\r\n"
          "\r\n",
          _response_header,
          day_id, tm_access->tm_mday, month_id, (tm_access->tm_year + 1900), tm_access->tm_hour, tm_access->tm_min, tm_access->tm_sec,
@@ -1402,7 +1402,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                         stcp_bytes = stcp_recv_data(init_data, (unsigned char *) buffer, buffer_size);
                         if (stcp_bytes <= 0){
                             stcp_debug(__func__, "WEBSERVER INFO", "Lost Connection..\n");
-                            break;
+                            goto close_client;
                         }
                         else {
                             while (stcp_size < (idx_chr + stcp_bytes) + 2){
@@ -1451,7 +1451,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                         stcp_bytes = stcp_recv_data(init_data, (unsigned char *) buffer, _stcpWI->content_length);
                         if (stcp_bytes <= 0){
                             stcp_debug(__func__, "WEBSERVER INFO", "Lost Connection..\n");
-                            break;
+                            goto close_client;
                         }
                         else {
                             while (stcp_size < (idx_chr + stcp_bytes) + 2){
@@ -1511,9 +1511,11 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                     char func_name[strlen(response_content) - 9];
                     memset(func_name, 0x00, sizeof(func_name));
                     memcpy(func_name, response_content + 10, (strlen(response_content) - 10));
-                    if (stcp_http_webserver_function_select(init_data, _stcpWI, _stcpWH, _stcpWList, response_code, func_name) == -1){
+                    int8_t retval = stcp_http_webserver_function_select(init_data, _stcpWI, _stcpWH, _stcpWList, response_code, func_name);
+                    if (retval == -1 || retval == 1){
                         goto close_client;
                     }
+                    goto stcp_next;
                 }
                 else {
                     if (stcp_http_webserver_generate_header(
@@ -1540,7 +1542,11 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 
                 close_client:
                     close(init_data.connection_f);
-                    client_fd[idx_client] = 0;
+                    init_data.connection_f = 0;
+                    stcp_debug(__func__, "INFO", "one client connection closed\n");
+                stcp_next:
+                    client_fd[idx_client] = init_data.connection_f;
+                    stcp_debug(__func__, "INFO", "response done\n");
             }
         }
     }
@@ -2163,7 +2169,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
             memcpy(response + total_bytes, response_tmp, bytes);
             response[total_bytes_tmp] = 0x00;
             if (get_process == STCP_PROCESS_GET_HEADER){
-                if (total_bytes > 4 || bytes > 4){
+                if ((total_bytes > 4 && bytes > 0) || bytes > 4){
                     if ((total_bytes > 20 || bytes > 20) && header_check_status == STCP_HEADER_CHECK){
                         if (strstr((char *) response, "200 OK") == NULL){
                             header_check_status = STCP_HEADER_BLOCK;
@@ -2188,8 +2194,10 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
                             header_check_status = STCP_HEADER_PASS;
                         }
                     }
-                    total_bytes = 4;
-                    bytes = bytes - 4;
+                    if (total_bytes == 0){
+                        total_bytes = 4;
+                        bytes = bytes - 4;
+                    }
                     do {
                         if(response[total_bytes - 1] == '\n' && response[total_bytes - 2] == '\r' &&
                          response[total_bytes - 3] == '\n' && response[total_bytes - 4] == '\r'
@@ -2235,6 +2243,9 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
                 }
             }
             else if (get_process == STCP_PROCESS_GET_CONTENT){
+                bytes = 1;
+            }
+            else {
                 bytes = 1;
             }
         }
