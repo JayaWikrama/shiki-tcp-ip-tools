@@ -80,7 +80,8 @@ typedef enum {
   STCP_REQ_HEADER_ONLY = 1,
   STCP_REQ_CONTENT_ONLY = 2,
   STCP_REQ_HTTP_STATUS_ONLY = 3,
-  STCP_REQ_DOWNLOAD_CONTENT = 4
+  STCP_REQ_DOWNLOAD_CONTENT = 4,
+  STCP_REQ_UPLOAD_FILE = 5
 } stcp_request_type;
 
 typedef enum{
@@ -111,11 +112,11 @@ stcpSock stcp_client_init(char *ADDRESS, uint16_t PORT);
 stcpSock stcp_server_init(char *ADDRESS, uint16_t PORT);
 
 #ifdef __STCP_WEBSERVER__
-int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList _stcpWList);
-int8_t stcp_http_webserver_add_negative_code_response(stcpWList _stcpWList, stcp_webserver_negative_code _code_param, char *_response_content);
-int8_t stcp_http_webserver_add_response(stcpWList _stcpWList, char *_end_point, char *_response_content, char *_request_method);
-int8_t stcp_http_webserver_add_response_file(stcpWList _stcpWList, char *_end_point, char *_response_file, char *_request_method);
-int8_t stcp_http_webserver_add_response_function(stcpWList _stcpWList, char *_end_point, char *_response_function, char *_request_method);
+int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList *_stcpWList);
+int8_t stcp_http_webserver_add_negative_code_response(stcpWList *_stcpWList, stcp_webserver_negative_code _code_param, char *_response_content);
+int8_t stcp_http_webserver_add_response(stcpWList *_stcpWList, char *_end_point, char *_response_content, char *_request_method);
+int8_t stcp_http_webserver_add_response_file(stcpWList *_stcpWList, char *_end_point, char *_response_file, char *_request_method);
+int8_t stcp_http_webserver_add_response_function(stcpWList *_stcpWList, char *_end_point, char *_response_function, char *_request_method);
 int8_t stcp_http_webserver_set_content_type(stcpWHead *_stcpWH, char *_content_type);
 int8_t stcp_http_webserver_set_accept(stcpWHead *_stcpWH, char *_accept);
 int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList _stcpWList);
@@ -134,19 +135,21 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
   stcp_ssl_send_data
   stcp_ssl_recv_data
 
-  com_data : based on init process
+  _init_data : based on init process
   buff : buffer that will be send or receive
   size_set : length of buffer (you can use strlen(buffer))
 
   return success : >= 0
   return fail : -1
 */
-int16_t stcp_send_data(stcpSock com_data, unsigned char* buff, int16_t size_set);
-int16_t stcp_recv_data(stcpSock com_data, unsigned char* buff, int16_t size_set);
+int16_t stcp_send_data(stcpSock _init_data, unsigned char* buff, int16_t size_set);
+int8_t stcp_send_file(stcpSock _init_data, char *_file_name);
+int16_t stcp_recv_data(stcpSock _init_data, unsigned char* buff, int16_t size_set);
 
 #ifdef __STCP_SSL__
-  int16_t stcp_ssl_send_data(stcpSock com_data, unsigned char* buff, int16_t size_set);
-  int16_t stcp_ssl_recv_data(stcpSock com_data, unsigned char* buff, int16_t size_set);
+  int16_t stcp_ssl_send_data(stcpSock _init_data, unsigned char* buff, int16_t size_set);
+  int8_t stcp_ssl_send_file(stcpSock _init_data, char *_file_name);
+  int16_t stcp_ssl_recv_data(stcpSock _init_data, unsigned char* buff, int16_t size_set);
 #endif
 
 int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_point, uint16_t *_port);
