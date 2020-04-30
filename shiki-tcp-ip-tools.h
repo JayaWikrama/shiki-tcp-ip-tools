@@ -3,7 +3,7 @@
 
 #define __STCP_PING__
 #define __STCP_SSL__
-#define __STCP_WEBSERVER__
+//#define __STCP_WEBSERVER__
 
 #include <stdint.h>
 #ifdef __STCP_SSL__
@@ -63,7 +63,7 @@ typedef struct stcp_sock_data stcpSock;
     char *rcv_cookies;
     char *rcv_content;
     char *ipaddr;
-    uint16_t content_length;
+    uint32_t content_length;
   };
 
   struct stcp_webserver_header{
@@ -96,7 +96,7 @@ void stcp_debug(const char *function_name, char *debug_type, char *debug_msg, ..
 
 void stcp_view_version();
 long stcp_get_version(char *_version);
-int8_t stcp_setup(stcp_setup_parameter _setup_parameter, int16_t _value);
+int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value);
 
 /*
   stcp_client_init
@@ -142,18 +142,19 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
   return success : >= 0
   return fail : -1
 */
-int16_t stcp_send_data(stcpSock _init_data, unsigned char* buff, int16_t size_set);
+int32_t stcp_send_data(stcpSock _init_data, unsigned char* buff, int32_t size_set);
 int8_t stcp_send_file(stcpSock _init_data, char *_file_name);
-int16_t stcp_recv_data(stcpSock _init_data, unsigned char* buff, int16_t size_set);
+int32_t stcp_recv_data(stcpSock _init_data, unsigned char* buff, int32_t size_set);
 
 #ifdef __STCP_SSL__
-  int16_t stcp_ssl_send_data(stcpSock _init_data, unsigned char* buff, int16_t size_set);
+  int32_t stcp_ssl_send_data(stcpSock _init_data, unsigned char* buff, int32_t size_set);
   int8_t stcp_ssl_send_file(stcpSock _init_data, char *_file_name);
-  int16_t stcp_ssl_recv_data(stcpSock _init_data, unsigned char* buff, int16_t size_set);
+  int32_t stcp_ssl_recv_data(stcpSock _init_data, unsigned char* buff, int32_t size_set);
 #endif
 
 int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_point, uint16_t *_port);
 char *stcp_http_content_generator(uint16_t _sizeof_content, char *_content_format, ...);
+unsigned char *stcp_http_generate_multipart_header(char *_stcp_multipart_header_input, char *_boundary_output, uint16_t *_length_part);
 unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_content, stcp_request_type _request_type);
 
 void stcp_close(stcpSock *init_data);
