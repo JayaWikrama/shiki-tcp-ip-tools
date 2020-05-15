@@ -1271,6 +1271,7 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
 int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList _stcpWList){
     if (stcp_webserver_init_state == 0){
         stcp_debug(__func__, "ERROR", "web server not ready\n");
+        stcp_http_webserver_free(_stcpWI, _stcpWH, _stcpWList);
         return -1;
     }
     stcpSock init_data;
@@ -1281,7 +1282,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
     buffer = (char *) malloc(buffer_size * sizeof(char));
     if (buffer == NULL){
         stcp_debug(__func__, "ERROR", "failed to allocate memory\n");
-        close(init_data.socket_f);
+        stcp_http_webserver_free(_stcpWI, _stcpWH, _stcpWList);
         init_data.socket_f = -1;
         return -1;
     }
@@ -1366,10 +1367,10 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
     while (stcp_server_state == STCP_SERVER_RUNING){
         FD_ZERO(&readfds);   
         FD_SET(init_data.socket_f, &readfds);   
-        max_sd = init_data.socket_f;   
+        max_sd = (uint16_t) init_data.socket_f;   
              
         /* add child sockets to set */
-        for ( idx_client = 0 ; idx_client < MAX_CLIENT ; idx_client++){     
+        for (idx_client = 0 ; idx_client < MAX_CLIENT ; idx_client++){     
             if(client_fd[idx_client] > 0){
                 FD_SET(client_fd[idx_client] , &readfds);
             }
@@ -1502,6 +1503,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 char *buffer_info = NULL;
                 memset(response_code, 0x00, sizeof(response_code));
                 response_content = stcp_http_webserver_select_response(_stcpWI, _stcpWList, response_code);
+                /* user handling start here */
                 if (response_content == NULL) {
                     if (strcmp(_stcpWI->rcv_connection_type, "Keep-Alive") == 0){
                         goto stcp_next;
@@ -1578,6 +1580,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                     }
                 */
                     goto stcp_next;
+                /* user handling end here */
                 close_client:
                     close(init_data.connection_f);
                     init_data.connection_f = 0;
