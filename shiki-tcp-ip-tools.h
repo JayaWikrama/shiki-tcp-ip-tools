@@ -65,6 +65,7 @@ typedef struct stcp_sock_data stcpSock;
     char *rcv_connection_type;
     char *ipaddr;
     uint32_t content_length;
+    int8_t comm_protocol;
   };
 
   struct stcp_webserver_header{
@@ -90,7 +91,10 @@ typedef enum{
   STCP_SET_TIMEOUT_IN_MILLISEC = 1,
   STCP_SET_DEBUG_MODE = 2,
   STCP_SET_SIZE_PER_RECV = 3,
-  STCP_SET_INFINITE_MODE_RETRY = 4
+  STCP_SET_SIZE_PER_SEND = 4,
+  STCP_SET_KEEP_ALIVE_TIMEOUT_IN_SEC = 5,
+  STCP_SET_KEEP_ALIVE_TIMEOUT_IN_MILLISEC = 6,
+  STCP_SET_INFINITE_MODE_RETRY = 7
 } stcp_setup_parameter;
 
 void stcp_debug(const char *function_name, char *debug_type, char *debug_msg, ...);
