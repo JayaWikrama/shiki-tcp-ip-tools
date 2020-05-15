@@ -3,7 +3,7 @@
 
 #define __STCP_PING__
 #define __STCP_SSL__
-//#define __STCP_WEBSERVER__
+#define __STCP_WEBSERVER__
 
 #include <stdint.h>
 #ifdef __STCP_SSL__
@@ -62,6 +62,7 @@ typedef struct stcp_sock_data stcpSock;
     char *rcv_auth;
     char *rcv_cookies;
     char *rcv_content;
+    char *rcv_connection_type;
     char *ipaddr;
     uint32_t content_length;
   };

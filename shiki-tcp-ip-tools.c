@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.05.20.04.28
+    ver         : 3.05.20.05.15
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -381,6 +381,7 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
     _stcpWI->rcv_acception_type = NULL;
     _stcpWI->rcv_auth = NULL;
     _stcpWI->rcv_cookies = NULL;
+    _stcpWI->rcv_connection_type = NULL;
     _stcpWI->rcv_content = NULL;
     _stcpWH->content_type = NULL;
     _stcpWH->accept_type = NULL;
@@ -482,6 +483,27 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
         _stcpWI->rcv_auth = NULL;
         return -1;
     }
+    _stcpWI->rcv_connection_type = (char *) malloc(8*sizeof(char));
+    if (_stcpWI->rcv_connection_type == NULL){
+        stcp_debug(__func__, "ERROR", "failed to alllocate rcv_connection_type memory\n");
+        free(_stcpWI->server_header);
+        free(_stcpWI->auth_end_point);
+        free(_stcpWI->rcv_header);
+        free(_stcpWI->rcv_endpoint);
+        free(_stcpWI->rcv_content_type);
+        free(_stcpWI->rcv_acception_type);
+        free(_stcpWI->rcv_auth);
+        free(_stcpWI->rcv_connection_type);
+        _stcpWI->server_header = NULL;
+        _stcpWI->auth_end_point = NULL;
+        _stcpWI->rcv_header = NULL;
+        _stcpWI->rcv_endpoint = NULL;
+        _stcpWI->rcv_content_type = NULL;
+        _stcpWI->rcv_acception_type = NULL;
+        _stcpWI->rcv_auth = NULL;
+        _stcpWI->rcv_cookies = NULL;
+        return -1;
+    }
     _stcpWI->rcv_content = (char *) malloc(8*sizeof(char));
     if (_stcpWI->rcv_content == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate rcv_content memory\n");
@@ -493,6 +515,7 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
         free(_stcpWI->rcv_acception_type);
         free(_stcpWI->rcv_auth);
         free(_stcpWI->rcv_cookies);
+        free(_stcpWI->rcv_connection_type);
         _stcpWI->server_header = NULL;
         _stcpWI->auth_end_point = NULL;
         _stcpWI->rcv_header = NULL;
@@ -501,6 +524,7 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
         _stcpWI->rcv_acception_type = NULL;
         _stcpWI->rcv_auth = NULL;
         _stcpWI->rcv_cookies = NULL;
+        _stcpWI->rcv_connection_type = NULL;
         return -1;
     }
     _stcpWI->ipaddr = (char *) malloc(16*sizeof(char));
@@ -514,6 +538,8 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
         free(_stcpWI->rcv_acception_type);
         free(_stcpWI->rcv_auth);
         free(_stcpWI->rcv_cookies);
+        free(_stcpWI->rcv_connection_type);
+        free(_stcpWI->rcv_content);
         _stcpWI->server_header = NULL;
         _stcpWI->auth_end_point = NULL;
         _stcpWI->rcv_header = NULL;
@@ -522,6 +548,8 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
         _stcpWI->rcv_acception_type = NULL;
         _stcpWI->rcv_auth = NULL;
         _stcpWI->rcv_cookies = NULL;
+        _stcpWI->rcv_connection_type = NULL;
+        _stcpWI->rcv_content = NULL;
         return -1;
     }
     _stcpWH->content_type = (char *) malloc(32*sizeof(char));
@@ -535,6 +563,7 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
         free(_stcpWI->rcv_acception_type);
         free(_stcpWI->rcv_auth);
         free(_stcpWI->rcv_cookies);
+        free(_stcpWI->rcv_connection_type);
         free(_stcpWI->rcv_content);
         free(_stcpWI->ipaddr);
         _stcpWI->server_header = NULL;
@@ -545,6 +574,7 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
         _stcpWI->rcv_acception_type = NULL;
         _stcpWI->rcv_auth = NULL;
         _stcpWI->rcv_cookies = NULL;
+        _stcpWI->rcv_connection_type = NULL;
         _stcpWI->rcv_content = NULL;
         _stcpWI->ipaddr = NULL;
         return -1;
@@ -560,6 +590,7 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
         free(_stcpWI->rcv_acception_type);
         free(_stcpWI->rcv_auth);
         free(_stcpWI->rcv_cookies);
+        free(_stcpWI->rcv_connection_type);
         free(_stcpWI->rcv_content);
         free(_stcpWI->ipaddr);
         free(_stcpWH->content_type);
@@ -571,6 +602,7 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
         _stcpWI->rcv_acception_type = NULL;
         _stcpWI->rcv_auth = NULL;
         _stcpWI->rcv_cookies = NULL;
+        _stcpWI->rcv_connection_type = NULL;
         _stcpWI->rcv_content = NULL;
         _stcpWI->ipaddr = NULL;
         _stcpWH->content_type = NULL;
@@ -590,6 +622,7 @@ static void stcp_http_webserver_bzero(stcpWInfo *_stcpWI, stcpWHead *_stcpWH){
     _stcpWI->rcv_acception_type = (char *) realloc(_stcpWI->rcv_acception_type, 8*sizeof(char));
     _stcpWI->rcv_auth = (char *) realloc(_stcpWI->rcv_auth, 8*sizeof(char));
     _stcpWI->rcv_cookies = (char *) realloc(_stcpWI->rcv_cookies, 8*sizeof(char));
+    _stcpWI->rcv_connection_type = (char *) realloc(_stcpWI->rcv_connection_type, 8*sizeof(char));
     _stcpWI->rcv_content = (char *) realloc(_stcpWI->rcv_content, 8*sizeof(char));
 
     memset(_stcpWI->rcv_header, 0x00, 8*sizeof(char));
@@ -598,6 +631,7 @@ static void stcp_http_webserver_bzero(stcpWInfo *_stcpWI, stcpWHead *_stcpWH){
     memset(_stcpWI->rcv_acception_type, 0x00, 8*sizeof(char));
     memset(_stcpWI->rcv_auth, 0x00, 8*sizeof(char));
     memset(_stcpWI->rcv_cookies, 0x00, 8*sizeof(char));
+    memset(_stcpWI->rcv_connection_type, 0x00, 8*sizeof(char));
     memset(_stcpWI->rcv_content, 0x00, 8*sizeof(char));
 
     _stcpWI->content_length = 0;
@@ -612,6 +646,7 @@ static void stcp_http_webserver_free(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stc
     free(_stcpWI->rcv_acception_type);
     free(_stcpWI->rcv_auth);
     free(_stcpWI->rcv_cookies);
+    free(_stcpWI->rcv_connection_type);
     free(_stcpWI->rcv_content);
     free(_stcpWI->ipaddr);
     free(_stcpWH->content_type);
@@ -628,6 +663,7 @@ static void stcp_http_webserver_free(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stc
     _stcpWI->rcv_content = NULL;
     _stcpWI->content_length = 0;
     _stcpWI->rcv_content = NULL;
+    _stcpWI->rcv_connection_type = NULL;
     _stcpWI->ipaddr = NULL;
     _stcpWH->content_type = NULL;
     _stcpWH->accept_type = NULL;
@@ -728,6 +764,20 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
         strcpy(_stcpWI->rcv_content_type, "(null)");
     }
     stcp_debug(__func__, "INFO", "CONTENT TYPE: %s\n", _stcpWI->rcv_content_type);
+    /* GET CONNECTION TYPE */
+    if (strstr(_stcpWI->rcv_header, "Connection:") != NULL){
+        if (stcp_http_webserver_header_get(
+         (unsigned char *) _stcpWI->rcv_header,
+         (unsigned char *) "Connection:",
+         (unsigned char **) &(_stcpWI->rcv_connection_type),
+         '\r') != 0){
+            strcpy(_stcpWI->rcv_connection_type, "closed");
+        }
+    }
+    else {
+        strcpy(_stcpWI->rcv_content_type, "closed");
+    }
+    stcp_debug(__func__, "INFO", "CONNECTION: %s\n", _stcpWI->rcv_connection_type);
     /* GET ACCEPTION TYPE */
     if (strstr(_stcpWI->rcv_header, "Accept:") != NULL){
         if (stcp_http_webserver_header_get(
@@ -1361,7 +1411,6 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 stcp_http_webserver_bzero(_stcpWI, _stcpWH);
                 proc_state = STCP_PROCESS_GET_HEADER;
                 while(1){
-                    printf("%s", buffer);
                     if (proc_state == STCP_PROCESS_GET_HEADER){
                         stcp_bytes = stcp_recv_data(init_data, (unsigned char *) buffer, buffer_size);
                         if (stcp_bytes <= 0){
@@ -1374,12 +1423,11 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                         else {
                             while (stcp_size < (idx_chr + stcp_bytes) + 2){
                                 stcp_size = stcp_size + 8;
-                                if (stcp_size >= idx_chr + 2){
+                                if (stcp_size >= (idx_chr + stcp_bytes) + 2){
                                     _stcpWI->rcv_header = (char *) realloc(_stcpWI->rcv_header, (stcp_size + 1)*sizeof(char));
                                 }
                             }
                             memcpy(_stcpWI->rcv_header + idx_chr, buffer, stcp_bytes);
-
                             if(strstr(_stcpWI->rcv_header, "HTTP") == NULL){
                                 if(_stcpWI->rcv_header[idx_chr + stcp_bytes - 1] == '\n'){
                                     stcp_debug(__func__, "WEBSERVER INFO", "goto stcp origin function\n");
@@ -1387,6 +1435,9 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                                 }
                             }
                             else {
+                                if (!idx_chr){
+                                    idx_chr = 4;
+                                }
                                 do {
                                     if(_stcpWI->rcv_header[idx_chr - 1] == '\n' && _stcpWI->rcv_header[idx_chr - 2] == '\r' &&
                                      _stcpWI->rcv_header[idx_chr - 3] == '\n' && _stcpWI->rcv_header[idx_chr - 4] == '\r'
@@ -1452,6 +1503,9 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 memset(response_code, 0x00, sizeof(response_code));
                 response_content = stcp_http_webserver_select_response(_stcpWI, _stcpWList, response_code);
                 if (response_content == NULL) {
+                    if (strcmp(_stcpWI->rcv_connection_type, "Keep-Alive") == 0){
+                        goto stcp_next;
+                    }
                     if (stcp_http_webserver_generate_header(
                      _stcpWI,
                      response_code,
@@ -1517,10 +1571,12 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 }
                 
                 stcp_func:
+                /*
                     retval = stcp_http_webserver_function_select(init_data, _stcpWI, _stcpWH, _stcpWList, "STCP RESP", "stcp_select_func");
                     if (retval == -1 || retval == 1){
                         goto close_client;
                     }
+                */
                     goto stcp_next;
                 close_client:
                     close(init_data.connection_f);
