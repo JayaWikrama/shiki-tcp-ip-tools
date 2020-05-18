@@ -415,224 +415,105 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
     _stcpWI->auth_end_point = (char *) malloc(8*sizeof(char));
     if (_stcpWI->auth_end_point == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate auth_end_point memory\n");
-        free(_stcpWI->server_header);
-        _stcpWI->server_header = NULL;
-        return -1;
+        goto stcp_err_1;
     }
     _stcpWI->rcv_header = (char *) malloc(8*sizeof(char));
     if (_stcpWI->rcv_header == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate rcv_header memory\n");
-        free(_stcpWI->server_header);
-        free(_stcpWI->auth_end_point);
-        _stcpWI->server_header = NULL;
-        _stcpWI->auth_end_point = NULL;
-        return -1;
+        goto stcp_err_2;
     }
     _stcpWI->rcv_endpoint = (char *) malloc(8*sizeof(char));
     if (_stcpWI->rcv_endpoint == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate rcv_endpoint memory\n");
-        free(_stcpWI->server_header);
-        free(_stcpWI->auth_end_point);
-        free(_stcpWI->rcv_header);
-        _stcpWI->server_header = NULL;
-        _stcpWI->auth_end_point = NULL;
-        _stcpWI->rcv_header = NULL;
-        return -1;
+        goto stcp_err_3;
     }
     _stcpWI->rcv_content_type = (char *) malloc(8*sizeof(char));
     if (_stcpWI->rcv_content_type == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate rcv_content_type memory\n");
-        free(_stcpWI->server_header);
-        free(_stcpWI->auth_end_point);
-        free(_stcpWI->rcv_header);
-        free(_stcpWI->rcv_endpoint);
-        _stcpWI->server_header = NULL;
-        _stcpWI->auth_end_point = NULL;
-        _stcpWI->rcv_header = NULL;
-        _stcpWI->rcv_endpoint = NULL;
-        return -1;
+        goto stcp_err_4;
     }
     _stcpWI->rcv_acception_type = (char *) malloc(8*sizeof(char));
     if (_stcpWI->rcv_acception_type == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate rcv_acception_type memory\n");
-        free(_stcpWI->server_header);
-        free(_stcpWI->auth_end_point);
-        free(_stcpWI->rcv_header);
-        free(_stcpWI->rcv_endpoint);
-        free(_stcpWI->rcv_content_type);
-        _stcpWI->server_header = NULL;
-        _stcpWI->auth_end_point = NULL;
-        _stcpWI->rcv_header = NULL;
-        _stcpWI->rcv_endpoint = NULL;
-        _stcpWI->rcv_content_type = NULL;
-        return -1;
+        goto stcp_err_5;
     }
     _stcpWI->rcv_auth = (char *) malloc(8*sizeof(char));
     if (_stcpWI->rcv_auth == NULL){
-        stcp_debug(__func__, "ERROR", "failed to alllocate rcv_auth memory\n");
-        free(_stcpWI->server_header);
-        free(_stcpWI->auth_end_point);
-        free(_stcpWI->rcv_header);
-        free(_stcpWI->rcv_endpoint);
-        free(_stcpWI->rcv_content_type);
-        free(_stcpWI->rcv_acception_type);
-        _stcpWI->server_header = NULL;
-        _stcpWI->auth_end_point = NULL;
-        _stcpWI->rcv_header = NULL;
-        _stcpWI->rcv_endpoint = NULL;
-        _stcpWI->rcv_content_type = NULL;
-        _stcpWI->rcv_acception_type = NULL;
-        return -1;
+        goto stcp_err_6;
     }
     _stcpWI->rcv_cookies = (char *) malloc(8*sizeof(char));
     if (_stcpWI->rcv_cookies == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate rcv_cookies memory\n");
-        free(_stcpWI->server_header);
-        free(_stcpWI->auth_end_point);
-        free(_stcpWI->rcv_header);
-        free(_stcpWI->rcv_endpoint);
-        free(_stcpWI->rcv_content_type);
-        free(_stcpWI->rcv_acception_type);
-        free(_stcpWI->rcv_auth);
-        _stcpWI->server_header = NULL;
-        _stcpWI->auth_end_point = NULL;
-        _stcpWI->rcv_header = NULL;
-        _stcpWI->rcv_endpoint = NULL;
-        _stcpWI->rcv_content_type = NULL;
-        _stcpWI->rcv_acception_type = NULL;
-        _stcpWI->rcv_auth = NULL;
-        return -1;
+        goto stcp_err_7;
     }
     _stcpWI->rcv_connection_type = (char *) malloc(8*sizeof(char));
     if (_stcpWI->rcv_connection_type == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate rcv_connection_type memory\n");
-        free(_stcpWI->server_header);
-        free(_stcpWI->auth_end_point);
-        free(_stcpWI->rcv_header);
-        free(_stcpWI->rcv_endpoint);
-        free(_stcpWI->rcv_content_type);
-        free(_stcpWI->rcv_acception_type);
-        free(_stcpWI->rcv_auth);
-        free(_stcpWI->rcv_connection_type);
-        _stcpWI->server_header = NULL;
-        _stcpWI->auth_end_point = NULL;
-        _stcpWI->rcv_header = NULL;
-        _stcpWI->rcv_endpoint = NULL;
-        _stcpWI->rcv_content_type = NULL;
-        _stcpWI->rcv_acception_type = NULL;
-        _stcpWI->rcv_auth = NULL;
-        _stcpWI->rcv_cookies = NULL;
-        return -1;
+        goto stcp_err_8;
     }
     _stcpWI->rcv_content = (char *) malloc(8*sizeof(char));
     if (_stcpWI->rcv_content == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate rcv_content memory\n");
-        free(_stcpWI->server_header);
-        free(_stcpWI->auth_end_point);
-        free(_stcpWI->rcv_header);
-        free(_stcpWI->rcv_endpoint);
-        free(_stcpWI->rcv_content_type);
-        free(_stcpWI->rcv_acception_type);
-        free(_stcpWI->rcv_auth);
-        free(_stcpWI->rcv_cookies);
-        free(_stcpWI->rcv_connection_type);
-        _stcpWI->server_header = NULL;
-        _stcpWI->auth_end_point = NULL;
-        _stcpWI->rcv_header = NULL;
-        _stcpWI->rcv_endpoint = NULL;
-        _stcpWI->rcv_content_type = NULL;
-        _stcpWI->rcv_acception_type = NULL;
-        _stcpWI->rcv_auth = NULL;
-        _stcpWI->rcv_cookies = NULL;
-        _stcpWI->rcv_connection_type = NULL;
-        return -1;
+        goto stcp_err_9;
     }
     _stcpWI->ipaddr = (char *) malloc(16*sizeof(char));
     if (_stcpWI->ipaddr == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate ipaddr memory\n");
-        free(_stcpWI->server_header);
-        free(_stcpWI->auth_end_point);
-        free(_stcpWI->rcv_header);
-        free(_stcpWI->rcv_endpoint);
-        free(_stcpWI->rcv_content_type);
-        free(_stcpWI->rcv_acception_type);
-        free(_stcpWI->rcv_auth);
-        free(_stcpWI->rcv_cookies);
-        free(_stcpWI->rcv_connection_type);
-        free(_stcpWI->rcv_content);
-        _stcpWI->server_header = NULL;
-        _stcpWI->auth_end_point = NULL;
-        _stcpWI->rcv_header = NULL;
-        _stcpWI->rcv_endpoint = NULL;
-        _stcpWI->rcv_content_type = NULL;
-        _stcpWI->rcv_acception_type = NULL;
-        _stcpWI->rcv_auth = NULL;
-        _stcpWI->rcv_cookies = NULL;
-        _stcpWI->rcv_connection_type = NULL;
-        _stcpWI->rcv_content = NULL;
-        return -1;
+        goto stcp_err_10;
     }
     _stcpWH->content_type = (char *) malloc(32*sizeof(char));
     if (_stcpWH->content_type == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate content_type memory\n");
-        free(_stcpWI->server_header);
-        free(_stcpWI->auth_end_point);
-        free(_stcpWI->rcv_header);
-        free(_stcpWI->rcv_endpoint);
-        free(_stcpWI->rcv_content_type);
-        free(_stcpWI->rcv_acception_type);
-        free(_stcpWI->rcv_auth);
-        free(_stcpWI->rcv_cookies);
-        free(_stcpWI->rcv_connection_type);
-        free(_stcpWI->rcv_content);
-        free(_stcpWI->ipaddr);
-        _stcpWI->server_header = NULL;
-        _stcpWI->auth_end_point = NULL;
-        _stcpWI->rcv_header = NULL;
-        _stcpWI->rcv_endpoint = NULL;
-        _stcpWI->rcv_content_type = NULL;
-        _stcpWI->rcv_acception_type = NULL;
-        _stcpWI->rcv_auth = NULL;
-        _stcpWI->rcv_cookies = NULL;
-        _stcpWI->rcv_connection_type = NULL;
-        _stcpWI->rcv_content = NULL;
-        _stcpWI->ipaddr = NULL;
-        return -1;
+        goto stcp_err_11;
     }
     _stcpWH->accept_type = (char *) malloc(8*sizeof(char));
     if (_stcpWH->accept_type == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate accept_type memory\n");
-        free(_stcpWI->server_header);
-        free(_stcpWI->auth_end_point);
-        free(_stcpWI->rcv_header);
-        free(_stcpWI->rcv_endpoint);
-        free(_stcpWI->rcv_content_type);
-        free(_stcpWI->rcv_acception_type);
-        free(_stcpWI->rcv_auth);
-        free(_stcpWI->rcv_cookies);
-        free(_stcpWI->rcv_connection_type);
-        free(_stcpWI->rcv_content);
-        free(_stcpWI->ipaddr);
-        free(_stcpWH->content_type);
-        _stcpWI->server_header = NULL;
-        _stcpWI->auth_end_point = NULL;
-        _stcpWI->rcv_header = NULL;
-        _stcpWI->rcv_endpoint = NULL;
-        _stcpWI->rcv_content_type = NULL;
-        _stcpWI->rcv_acception_type = NULL;
-        _stcpWI->rcv_auth = NULL;
-        _stcpWI->rcv_cookies = NULL;
-        _stcpWI->rcv_connection_type = NULL;
-        _stcpWI->rcv_content = NULL;
-        _stcpWI->ipaddr = NULL;
-        _stcpWH->content_type = NULL;
-        return -1;
+        goto stcp_err_12;
     }
 
     strcpy(_stcpWH->content_type, "text/html; charset=ISO-8859-1");
     strcpy(_stcpWH->accept_type, "*/*");
     stcp_webserver_init_state = 1;
     return 0;
+
+    stcp_err_12:
+        free(_stcpWH->content_type);
+        _stcpWH->content_type = NULL;
+    stcp_err_11:
+        free(_stcpWI->ipaddr);
+        _stcpWI->ipaddr = NULL;
+    stcp_err_10:
+        free(_stcpWI->rcv_content);
+        _stcpWI->rcv_content = NULL;
+    stcp_err_9:
+        free(_stcpWI->rcv_connection_type);
+        _stcpWI->rcv_connection_type = NULL;
+    stcp_err_8:
+        free(_stcpWI->rcv_cookies);
+        _stcpWI->rcv_cookies = NULL;
+    stcp_err_7:
+        free(_stcpWI->rcv_auth);
+        _stcpWI->rcv_auth = NULL;
+    stcp_err_6:
+        free(_stcpWI->rcv_acception_type);
+        _stcpWI->rcv_acception_type = NULL;
+    stcp_err_5:
+        free(_stcpWI->rcv_content_type);
+        _stcpWI->rcv_content_type = NULL;
+    stcp_err_4:
+        free(_stcpWI->rcv_endpoint);
+        _stcpWI->rcv_endpoint = NULL;
+    stcp_err_3:
+        free(_stcpWI->rcv_header);
+        _stcpWI->rcv_header = NULL;
+    stcp_err_2:
+        free(_stcpWI->auth_end_point);
+        _stcpWI->auth_end_point = NULL;
+    stcp_err_1:
+        free(_stcpWI->server_header);
+        _stcpWI->server_header = NULL;
+        return -1;
 }
 
 static void stcp_http_webserver_bzero(stcpWInfo *_stcpWI, stcpWHead *_stcpWH){
