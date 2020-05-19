@@ -1467,6 +1467,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                                     stcp_debug(__func__, "WEBSERVER INFO", "goto stcp origin function\n");
                                     goto stcp_func;
                                 }
+                                idx_chr = stcp_bytes - 1;
                             }
                             else {
                                 if (!idx_chr){
