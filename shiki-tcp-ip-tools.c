@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.05.20.05.15
+    ver         : 3.06.20.05.28
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -8,6 +8,7 @@
     Support     : tcp-ip client/server
                 : tcp-ip ssl client
                 : http request
+                : webserver (http/tcp)
 */
 
 #include <stdio.h>
@@ -51,6 +52,8 @@ static const int8_t STCP_PROCESS_GET_CONTENT = 4;
 
 #ifdef __STCP_WEBSERVER__
 static const int8_t STCP_SERVER_RUNING = 0;
+static const int8_t STCP_SERVER_STOP = 1;
+static const int8_t STCP_SERVER_STOPED = 2;
 
 int8_t stcp_webserver_init_state = 0;
 int8_t stcp_server_state = 0;
@@ -173,6 +176,51 @@ static int8_t stcp_connect_with_timeout (int stcp_socket_f, struct sockaddr * ad
 		}
 	}
 	return 0;
+}
+
+static int8_t stcp_accept_with_timeout (int stcp_socket_f, struct sockaddr_in *addr, socklen_t *addrlen, struct timeval * stcp_timeout) {
+	int8_t retval, fcntl_flags;
+    int connf = 0;
+	if ((fcntl_flags = fcntl (stcp_socket_f, F_GETFL, NULL)) < 0) {
+		return -1;
+	}
+	if (fcntl (stcp_socket_f, F_SETFL, fcntl_flags | O_NONBLOCK) < 0) {
+		return -1;
+	}
+	if ((connf = accept(stcp_socket_f, (SA*)addr, addrlen)) < 0) {
+		if (errno == EINPROGRESS) {
+			fd_set wait_set;
+			FD_ZERO (&wait_set);
+			FD_SET (stcp_socket_f, &wait_set);
+			retval = select (stcp_socket_f + 1, NULL, &wait_set, NULL, stcp_timeout);
+		}
+	}
+	else {
+		retval = 1;
+	}
+
+	if (fcntl (stcp_socket_f, F_SETFL, fcntl_flags) < 0) {
+		return -1;
+	}
+
+	if (retval < 0) {
+		return -1;
+	}
+	else if (retval == 0) {
+		errno = ETIMEDOUT;
+		return 1;
+	}
+	else {
+		socklen_t len = sizeof (fcntl_flags);
+		if (getsockopt (stcp_socket_f, SOL_SOCKET, SO_ERROR, &fcntl_flags, &len) < 0) {
+			return -1;
+		}
+		if (fcntl_flags) {
+			errno = fcntl_flags;
+			return -1;
+		}
+	}
+	return connf;
 }
 
 static int8_t stcp_check_ip(char *_ip_address){
@@ -1373,30 +1421,59 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
             }
         }
 
-        activity = select(max_sd + 1 , &readfds , NULL , NULL , NULL);
+        tv_timer.tv_sec = time_out_in_seconds;
+        tv_timer.tv_usec = time_out_in_milliseconds * 1000;
+        activity = select(max_sd + 1 , &readfds , NULL , NULL , &tv_timer);
         if ((activity < 0) && (errno!=EINTR))   
         {
             stcp_debug(__func__, "ERROR", "select error\n");
         }
 
-        if (FD_ISSET(init_data.socket_f, &readfds))   
+        if (FD_ISSET(init_data.socket_f, &readfds) && stcp_server_state == STCP_SERVER_RUNING)   
         {   
-            if ((init_data.connection_f = accept(init_data.socket_f, (SA*)&cli, &len))<0){   
-                stcp_debug(__func__, "ERROR", "accept error\n");
-                break;
+            tv_timer.tv_sec = time_out_in_seconds;
+            tv_timer.tv_usec = time_out_in_milliseconds * 1000;
+            if ((init_data.connection_f = stcp_accept_with_timeout(init_data.socket_f, &cli, &len, &tv_timer))<0){   
+                stcp_debug(__func__, "INFO", "accept timeout\n");
             }
-            strcpy(_stcpWI->ipaddr, inet_ntoa(cli.sin_addr));
-            stcp_debug(__func__, "WEBSERVER INFO", "new connection (%d) %s:%d\n" ,
-             init_data.connection_f, _stcpWI->ipaddr, ntohs(cli.sin_port)
-            );
-            for (idx_client = 0; idx_client < MAX_CLIENT; idx_client++){
-                if(client_fd[idx_client] == 0 ){
-                    client_fd[idx_client] = init_data.connection_f;
-                    break;   
-                }   
-            }   
+            else {
+                strcpy(_stcpWI->ipaddr, inet_ntoa(cli.sin_addr));
+                for (idx_client = 0; idx_client < MAX_CLIENT; idx_client++){
+                    if(client_fd[idx_client] == 0 ){
+                        client_fd[idx_client] = init_data.connection_f;
+                        stcp_debug(__func__, "WEBSERVER INFO", "new connection (%d:%d) %s:%d\n" ,
+                         init_data.connection_f, idx_client, _stcpWI->ipaddr, ntohs(cli.sin_port)
+                        );
+                        break;   
+                    }   
+                }
+            }
         }
-        for (idx_client = 0; idx_client < MAX_CLIENT; idx_client++){
+        else if (stcp_server_state == STCP_SERVER_RUNING){
+            for (idx_client = 0; idx_client<MAX_CLIENT; idx_client++){
+                if (keep_alive_cnt[idx_client] > 0 && client_fd[idx_client] > 0){
+                    gettimeofday(&tv_timer, NULL);
+                    if ((keep_alive_cnt[idx_client] +
+                      (keep_alive_time_out_in_seconds*1000) +
+                      keep_alive_time_out_in_milliseconds
+                     ) <=
+                     ((tv_timer.tv_sec%60)*1000 + (tv_timer.tv_usec/1000))
+                    ){
+                        keep_alive_cnt[idx_client] = 0;
+                        if (_stcpWI->comm_protocol){
+                            #ifdef __STCP_SSL__
+                                SSL_free(init_data.ssl_connection_f);
+                                init_data.ssl_connection_f = NULL;
+                            #endif
+                        }
+                        close(client_fd[idx_client]);
+                        client_fd[idx_client] = 0;
+                        stcp_debug(__func__, "WEBSERVER INFO", "one client connection closed (%i)\n", idx_client);
+                    }
+                }
+            }
+        }
+        for (idx_client = 0; idx_client < MAX_CLIENT && stcp_server_state == STCP_SERVER_RUNING; idx_client++){
             init_data.connection_f = client_fd[idx_client];
             if (FD_ISSET(init_data.connection_f , &readfds))   
             {
@@ -1415,15 +1492,17 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                         init_data.ssl_connection_f = SSL_new(ssl_ctx);
                         SSL_set_fd(init_data.ssl_connection_f, init_data.connection_f);
                         if (SSL_accept(init_data.ssl_connection_f) == -1){
+                            stcp_debug(__func__, "WARNING", "ssl accept failed\n");
                             goto close_client;
                             SSL_CTX_free(ssl_ctx);
                             ssl_ctx = NULL;
                         }
+                        SSL_get_peer_certificate(init_data.ssl_connection_f);
                         SSL_CTX_free(ssl_ctx);
                         ssl_ctx = NULL;
                     }
                 #endif
-                while(1){
+                while(stcp_server_state == STCP_SERVER_RUNING){
                     if (proc_state == STCP_PROCESS_GET_HEADER){
                         if (!_stcpWI->comm_protocol){
                             stcp_bytes = stcp_recv_data(init_data, (unsigned char *) buffer, buffer_size);
@@ -1655,7 +1734,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                     }
                     close(init_data.connection_f);
                     init_data.connection_f = 0;
-                    stcp_debug(__func__, "WEBSERVER INFO", "one client connection closed\n");
+                    stcp_debug(__func__, "WEBSERVER INFO", "one client connection closed (%d)\n", idx_client);
                 stcp_next:
                     client_fd[idx_client] = init_data.connection_f;
             }
@@ -1673,7 +1752,17 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
     stcp_http_webserver_free(_stcpWI, _stcpWH, &_stcpWList);
     free(buffer);
     buffer = NULL;
+    stcp_server_state = STCP_SERVER_STOPED;
+    stcp_debug(__func__, "WEBSERVER INFO", "server terminated!\n");
     return 0;
+}
+
+void stcp_http_webserver_stop(){
+    stcp_server_state = STCP_SERVER_STOP;
+    stcp_debug(__func__, "WEBSERVER INFO", "please wait...\n");
+    while(stcp_server_state == STCP_SERVER_STOP){
+        usleep(10000);
+    }
 }
 #endif
 

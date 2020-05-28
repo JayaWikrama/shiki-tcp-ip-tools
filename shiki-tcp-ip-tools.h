@@ -128,6 +128,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
 
 int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_header, char *_content_type, char *_acception_type, uint16_t _content_length);
 int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, stcpWHead *_stcpWH, char *_response_code, char *_file_name);
+void stcp_http_webserver_stop();
 #endif
 
 #ifdef __STCP_SSL__
