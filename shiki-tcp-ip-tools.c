@@ -28,6 +28,10 @@
 #include <errno.h>
 #include "shiki-tcp-ip-tools.h"
 
+#ifndef TIOCOUTQ
+#define TIOCOUTQ _IOR('t', 115, int)
+#endif
+
 #ifdef __linux__
     #include <arpa/inet.h>
 #endif
@@ -442,125 +446,132 @@ stcpSock stcp_server_init(char *ADDRESS, uint16_t PORT){
 
 #ifdef __STCP_WEBSERVER__
 int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList *_stcpWList){
-    _stcpWI->server_header = NULL;
-    _stcpWI->rcv_header = NULL;
-    _stcpWI->rcv_endpoint = NULL;
-    _stcpWI->rcv_content_type = NULL;
-    _stcpWI->rcv_acception_type = NULL;
-    _stcpWI->rcv_auth = NULL;
-    _stcpWI->rcv_cookies = NULL;
-    _stcpWI->rcv_connection_type = NULL;
-    _stcpWI->rcv_content = NULL;
-    _stcpWH->content_type = NULL;
-    _stcpWH->accept_type = NULL;
+    stcpWInfo stcpWI;
+    stcpWHead stcpWH;
+
+    stcpWI.server_header = NULL;
+    stcpWI.rcv_header = NULL;
+    stcpWI.rcv_endpoint = NULL;
+    stcpWI.rcv_content_type = NULL;
+    stcpWI.rcv_acception_type = NULL;
+    stcpWI.rcv_auth = NULL;
+    stcpWI.rcv_cookies = NULL;
+    stcpWI.rcv_connection_type = NULL;
+    stcpWI.rcv_content = NULL;
+    stcpWH.content_type = NULL;
+    stcpWH.accept_type = NULL;
 
     *_stcpWList = NULL;
-    _stcpWI->server_header = (char *) malloc(8*sizeof(char));
-    if (_stcpWI->server_header == NULL){
+    stcpWI.server_header = (char *) malloc(8*sizeof(char));
+    if (stcpWI.server_header == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate server_header memory\n");
         return -1;
     }
-    _stcpWI->auth_end_point = (char *) malloc(8*sizeof(char));
-    if (_stcpWI->auth_end_point == NULL){
+    stcpWI.auth_end_point = (char *) malloc(8*sizeof(char));
+    if (stcpWI.auth_end_point == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate auth_end_point memory\n");
         goto stcp_err_1;
     }
-    _stcpWI->rcv_header = (char *) malloc(8*sizeof(char));
-    if (_stcpWI->rcv_header == NULL){
+    stcpWI.rcv_header = (char *) malloc(8*sizeof(char));
+    if (stcpWI.rcv_header == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate rcv_header memory\n");
         goto stcp_err_2;
     }
-    _stcpWI->rcv_endpoint = (char *) malloc(8*sizeof(char));
-    if (_stcpWI->rcv_endpoint == NULL){
+    stcpWI.rcv_endpoint = (char *) malloc(8*sizeof(char));
+    if (stcpWI.rcv_endpoint == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate rcv_endpoint memory\n");
         goto stcp_err_3;
     }
-    _stcpWI->rcv_content_type = (char *) malloc(8*sizeof(char));
-    if (_stcpWI->rcv_content_type == NULL){
+    stcpWI.rcv_content_type = (char *) malloc(8*sizeof(char));
+    if (stcpWI.rcv_content_type == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate rcv_content_type memory\n");
         goto stcp_err_4;
     }
-    _stcpWI->rcv_acception_type = (char *) malloc(8*sizeof(char));
-    if (_stcpWI->rcv_acception_type == NULL){
+    stcpWI.rcv_acception_type = (char *) malloc(8*sizeof(char));
+    if (stcpWI.rcv_acception_type == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate rcv_acception_type memory\n");
         goto stcp_err_5;
     }
-    _stcpWI->rcv_auth = (char *) malloc(8*sizeof(char));
-    if (_stcpWI->rcv_auth == NULL){
+    stcpWI.rcv_auth = (char *) malloc(8*sizeof(char));
+    if (stcpWI.rcv_auth == NULL){
         goto stcp_err_6;
     }
-    _stcpWI->rcv_cookies = (char *) malloc(8*sizeof(char));
-    if (_stcpWI->rcv_cookies == NULL){
+    stcpWI.rcv_cookies = (char *) malloc(8*sizeof(char));
+    if (stcpWI.rcv_cookies == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate rcv_cookies memory\n");
         goto stcp_err_7;
     }
-    _stcpWI->rcv_connection_type = (char *) malloc(8*sizeof(char));
-    if (_stcpWI->rcv_connection_type == NULL){
+    stcpWI.rcv_connection_type = (char *) malloc(8*sizeof(char));
+    if (stcpWI.rcv_connection_type == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate rcv_connection_type memory\n");
         goto stcp_err_8;
     }
-    _stcpWI->rcv_content = (char *) malloc(8*sizeof(char));
-    if (_stcpWI->rcv_content == NULL){
+    stcpWI.rcv_content = (char *) malloc(8*sizeof(char));
+    if (stcpWI.rcv_content == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate rcv_content memory\n");
         goto stcp_err_9;
     }
-    _stcpWI->ipaddr = (char *) malloc(16*sizeof(char));
-    if (_stcpWI->ipaddr == NULL){
+    stcpWI.ipaddr = (char *) malloc(16*sizeof(char));
+    if (stcpWI.ipaddr == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate ipaddr memory\n");
         goto stcp_err_10;
     }
-    _stcpWH->content_type = (char *) malloc(32*sizeof(char));
-    if (_stcpWH->content_type == NULL){
+    stcpWH.content_type = (char *) malloc(32*sizeof(char));
+    if (stcpWH.content_type == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate content_type memory\n");
         goto stcp_err_11;
     }
-    _stcpWH->accept_type = (char *) malloc(8*sizeof(char));
-    if (_stcpWH->accept_type == NULL){
+    stcpWH.accept_type = (char *) malloc(8*sizeof(char));
+    if (stcpWH.accept_type == NULL){
         stcp_debug(__func__, "ERROR", "failed to alllocate accept_type memory\n");
         goto stcp_err_12;
     }
 
-    strcpy(_stcpWH->content_type, "text/html; charset=ISO-8859-1");
-    strcpy(_stcpWH->accept_type, "*/*");
+    strcpy(stcpWH.content_type, "text/html; charset=ISO-8859-1");
+    strcpy(stcpWH.accept_type, "*/*");
     stcp_webserver_init_state = 1;
+
+    *_stcpWI = stcpWI;
+    *_stcpWH = stcpWH;
+
     return 0;
 
     stcp_err_12:
-        free(_stcpWH->content_type);
-        _stcpWH->content_type = NULL;
+        free(stcpWH.content_type);
+        stcpWH.content_type = NULL;
     stcp_err_11:
-        free(_stcpWI->ipaddr);
-        _stcpWI->ipaddr = NULL;
+        free(stcpWI.ipaddr);
+        stcpWI.ipaddr = NULL;
     stcp_err_10:
-        free(_stcpWI->rcv_content);
-        _stcpWI->rcv_content = NULL;
+        free(stcpWI.rcv_content);
+        stcpWI.rcv_content = NULL;
     stcp_err_9:
-        free(_stcpWI->rcv_connection_type);
-        _stcpWI->rcv_connection_type = NULL;
+        free(stcpWI.rcv_connection_type);
+        stcpWI.rcv_connection_type = NULL;
     stcp_err_8:
-        free(_stcpWI->rcv_cookies);
-        _stcpWI->rcv_cookies = NULL;
+        free(stcpWI.rcv_cookies);
+        stcpWI.rcv_cookies = NULL;
     stcp_err_7:
-        free(_stcpWI->rcv_auth);
-        _stcpWI->rcv_auth = NULL;
+        free(stcpWI.rcv_auth);
+        stcpWI.rcv_auth = NULL;
     stcp_err_6:
-        free(_stcpWI->rcv_acception_type);
-        _stcpWI->rcv_acception_type = NULL;
+        free(stcpWI.rcv_acception_type);
+        stcpWI.rcv_acception_type = NULL;
     stcp_err_5:
-        free(_stcpWI->rcv_content_type);
-        _stcpWI->rcv_content_type = NULL;
+        free(stcpWI.rcv_content_type);
+        stcpWI.rcv_content_type = NULL;
     stcp_err_4:
-        free(_stcpWI->rcv_endpoint);
-        _stcpWI->rcv_endpoint = NULL;
+        free(stcpWI.rcv_endpoint);
+        stcpWI.rcv_endpoint = NULL;
     stcp_err_3:
-        free(_stcpWI->rcv_header);
-        _stcpWI->rcv_header = NULL;
+        free(stcpWI.rcv_header);
+        stcpWI.rcv_header = NULL;
     stcp_err_2:
-        free(_stcpWI->auth_end_point);
-        _stcpWI->auth_end_point = NULL;
+        free(stcpWI.auth_end_point);
+        stcpWI.auth_end_point = NULL;
     stcp_err_1:
-        free(_stcpWI->server_header);
-        _stcpWI->server_header = NULL;
+        free(stcpWI.server_header);
+        stcpWI.server_header = NULL;
         return -1;
 }
 
@@ -1421,9 +1432,14 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
             }
         }
 
-        tv_timer.tv_sec = time_out_in_seconds;
-        tv_timer.tv_usec = time_out_in_milliseconds * 1000;
-        activity = select(max_sd + 1 , &readfds , NULL , NULL , &tv_timer);
+        if (keep_alive_time_out_in_seconds > 0 || keep_alive_time_out_in_milliseconds > 0){
+            tv_timer.tv_sec = keep_alive_time_out_in_seconds;
+            tv_timer.tv_usec = keep_alive_time_out_in_milliseconds * 1000;
+            activity = select(max_sd + 1 , &readfds , NULL , NULL , &tv_timer);
+        }
+        else {
+            activity = select(max_sd + 1 , &readfds , NULL , NULL , NULL);
+        }
         if ((activity < 0) && (errno!=EINTR))   
         {
             stcp_debug(__func__, "ERROR", "select error\n");
@@ -1433,8 +1449,8 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
         {   
             tv_timer.tv_sec = time_out_in_seconds;
             tv_timer.tv_usec = time_out_in_milliseconds * 1000;
-            if ((init_data.connection_f = stcp_accept_with_timeout(init_data.socket_f, &cli, &len, &tv_timer))<0){   
-                stcp_debug(__func__, "INFO", "accept timeout\n");
+            if ((init_data.connection_f = accept(init_data.socket_f, (SA*)&cli, &len))<0){  
+                stcp_debug(__func__, "INFO", "accept failed\n");
             }
             else {
                 strcpy(_stcpWI->ipaddr, inet_ntoa(cli.sin_addr));
@@ -1449,7 +1465,9 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 }
             }
         }
-        else if (stcp_server_state == STCP_SERVER_RUNING){
+        else if (stcp_server_state == STCP_SERVER_RUNING &&
+         (keep_alive_time_out_in_seconds > 0 || keep_alive_time_out_in_milliseconds > 0)
+        ){
             for (idx_client = 0; idx_client<MAX_CLIENT; idx_client++){
                 if (keep_alive_cnt[idx_client] > 0 && client_fd[idx_client] > 0){
                     gettimeofday(&tv_timer, NULL);
@@ -1569,7 +1587,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                                         }
                                         stcp_http_webserver_header_parser(_stcpWI);
                                         proc_state = STCP_PROCESS_GET_CONTENT;
-                                        idx_chr = stcp_bytes;
+                                        idx_chr = stcp_bytes - 4;
                                         break;
                                     }
                                     idx_chr++;
@@ -1610,15 +1628,15 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                             }
                             memcpy(_stcpWI->rcv_content + idx_chr, buffer, stcp_bytes);
                             idx_chr = idx_chr + stcp_bytes;
-                            _stcpWI->rcv_content[idx_chr + 1] = 0x00;
+                            _stcpWI->rcv_content[idx_chr] = 0x00;
                         }
-                        if (_stcpWI->content_length > 0 && (idx_chr + 1) >= _stcpWI->content_length){
+                        if (_stcpWI->content_length > 0 && (idx_chr) >= _stcpWI->content_length){
                             break;
                         }
                     }
                 }
                 if (strlen(_stcpWI->rcv_content) > 0){
-                    printf("Content:\n%s\n", _stcpWI->rcv_content);
+                    printf("Content (%lu):\n%s\n", strlen(_stcpWI->rcv_content), _stcpWI->rcv_content);
                 }
                 
                 char *response_content = NULL;
@@ -1707,8 +1725,10 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 }
 
                 stcp_connection_check:
-                    if (strcmp(_stcpWI->rcv_connection_type, "Keep-Alive") == 0 ||
-                     strcmp(_stcpWI->rcv_connection_type, "keep-alive") == 0
+                    if ((strcmp(_stcpWI->rcv_connection_type, "Keep-Alive") == 0 ||
+                     strcmp(_stcpWI->rcv_connection_type, "keep-alive") == 0) &&
+                     (keep_alive_time_out_in_seconds > 0 ||
+                     keep_alive_time_out_in_milliseconds > 0)
                     ){
                         gettimeofday(&tv_timer, NULL);
                         keep_alive_cnt[idx_client] = (uint16_t) ((tv_timer.tv_sec%60)*1000 + (tv_timer.tv_usec/1000));
