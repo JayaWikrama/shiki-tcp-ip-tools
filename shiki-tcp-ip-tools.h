@@ -47,24 +47,29 @@ typedef struct stcp_sock_data stcpSock;
 #endif
 
 #ifdef __STCP_WEBSERVER__
-  typedef enum:int8_t{
+  typedef enum{
     STCP_401_UNAUTHOIZED = 0x01,
     STCP_404_NOT_FOUND = 0x02,
     STCP_405_METHOD_NOT_ALLOWED = 0x03
   } stcp_webserver_negative_code;
 
+  typedef struct stcp_subhead_var{
+    uint16_t stcp_sub_pos;
+    uint16_t stcp_sub_size;
+  } stcpSHead;
+
   struct stcp_webserver_info{
     char *server_header;
-    char *auth_end_point;
-    char request[8];
     char *rcv_header;
-    char *rcv_endpoint;
-    char *rcv_content_type;
-    char *rcv_acception_type;
-    char *rcv_auth;
-    char *rcv_cookies;
+    stcpSHead request;
+    stcpSHead data_end_point;
+    stcpSHead rcv_endpoint;
+    stcpSHead rcv_content_type;
+    stcpSHead rcv_acception_type;
+    stcpSHead rcv_auth;
+    stcpSHead rcv_cookies;
+    stcpSHead rcv_connection_type;
     char *rcv_content;
-    char *rcv_connection_type;
     char *ipaddr;
     uint32_t content_length;
     int8_t comm_protocol;
