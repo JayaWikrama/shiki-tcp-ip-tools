@@ -15,10 +15,12 @@
   typedef SHLink stcpWList;
 #endif
 
-#define INFINITE_RETRY 1
-#define WITHOUT_RETRY 0
-#define STCP_DEBUG_ON 1
-#define STCP_DEBUG_OFF 0
+typedef enum {
+  WITHOUT_RETRY = 0x00,
+  INFINITE_RETRY = 0x01,
+  STCP_DEBUG_OFF = 0x04,
+  STCP_DEBUG_ON = 0x03
+} stcp_global_def;
 
 #define STCP_MAX_LENGTH_FILE_NAME 16
 
@@ -45,10 +47,10 @@ typedef struct stcp_sock_data stcpSock;
 #endif
 
 #ifdef __STCP_WEBSERVER__
-  typedef enum{
-    STCP_401_UNAUTHOIZED = 1,
-    STCP_404_NOT_FOUND = 2,
-    STCP_405_METHOD_NOT_ALLOWED = 3
+  typedef enum:int8_t{
+    STCP_401_UNAUTHOIZED = 0x01,
+    STCP_404_NOT_FOUND = 0x02,
+    STCP_405_METHOD_NOT_ALLOWED = 0x03
   } stcp_webserver_negative_code;
 
   struct stcp_webserver_info{

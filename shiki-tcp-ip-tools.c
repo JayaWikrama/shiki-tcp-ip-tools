@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.06.20.05.28
+    ver         : 3.07.20.06.02
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -43,36 +43,55 @@
 #endif
 
 #define SA struct sockaddr
-#define STCP_VER "3.05.20.04.28"
+#define STCP_VER "3.07.20.06.02"
 
-static const int8_t STCP_TCP = 0;
-static const int8_t STCP_SSL = 1;
+typedef enum {
+    #ifdef __STCP_WEBSERVER__
+    /* Server state */
+    STCP_SERVER_RUNING = 0x00,
+    STCP_SERVER_STOP = 0x01,
+    STCP_SERVER_STOPED = 0x02,
+    #endif
+    /* Data com type */
+    STCP_TCP = 0x0a,
+    STCP_SSL = 0x0b,
+    /* Process state */
+    STCP_HEADER_CHECK = 0x10,
+    STCP_HEADER_PASS = 0x11,
+    STCP_HEADER_BLOCK = 0x12,
+    STCP_PROCESS_GET_HEADER = 0x13,
+    STCP_PROCESS_GET_CONTENT = 0x14
+} stcp_const;
 
-static const int8_t STCP_HEADER_CHECK = 0;
-static const int8_t STCP_HEADER_PASS = 1;
-static const int8_t STCP_HEADER_BLOCK = 2;
-static const int8_t STCP_PROCESS_GET_HEADER = 3;
-static const int8_t STCP_PROCESS_GET_CONTENT = 4;
+struct stcp_setup_var{
+    int8_t stcp_debug_mode;
+    int8_t stcp_retry_mode;
+    uint8_t stcp_max_recv_try;
+    uint16_t stcp_timeout_sec;
+    uint16_t stcp_timeout_millisec;
+    uint16_t stcp_keepalive_sec;
+    uint16_t stcp_keepalive_millisec;
+    uint32_t stcp_size_per_recv;
+    uint32_t stcp_size_per_send;
+};
+
+struct stcp_setup_var stcp_setup_data = {
+    STCP_DEBUG_OFF,
+    WITHOUT_RETRY,
+    3,
+    0,
+    0,
+    0,
+    0,
+    128,
+    128
+};
 
 #ifdef __STCP_WEBSERVER__
-static const int8_t STCP_SERVER_RUNING = 0;
-static const int8_t STCP_SERVER_STOP = 1;
-static const int8_t STCP_SERVER_STOPED = 2;
-
 int8_t stcp_webserver_init_state = 0;
 int8_t stcp_server_state = 0;
 #endif
 
-uint32_t SIZE_PER_RECV = 128;
-uint32_t SIZE_PER_SEND = 10240;
-
-int8_t stcp_debug_mode_status = STCP_DEBUG_OFF;
-int8_t infinite_retry_mode = WITHOUT_RETRY;
-uint8_t max_recv_try_times = 3;
-uint16_t time_out_in_seconds = 0;
-uint16_t time_out_in_milliseconds = 0;
-uint16_t keep_alive_time_out_in_seconds = 1;
-uint16_t keep_alive_time_out_in_milliseconds = 500;
 char stcp_file_name[STCP_MAX_LENGTH_FILE_NAME];
 
 static int8_t stcp_check_ip(char *_ip_address);
@@ -80,7 +99,7 @@ static unsigned long stcp_get_content_length(char *_text_source);
 static unsigned char *stcp_select_content(unsigned char *response, uint32_t _content_length);
 
 void stcp_debug(const char *function_name, char *debug_type, char *debug_msg, ...){
-	if (stcp_debug_mode_status == 1 || strcmp(debug_type, "INFO") != 0){
+	if (stcp_setup_data.stcp_debug_mode == 1 || strcmp(debug_type, "INFO") != 0){
         struct tm *d_tm;
         struct timeval tm_debug;
         uint16_t msec = 0;
@@ -89,7 +108,7 @@ void stcp_debug(const char *function_name, char *debug_type, char *debug_msg, ..
 	    gettimeofday(&tm_debug, NULL);
 	    d_tm = localtime(&tm_debug.tv_sec);
         msec = tm_debug.tv_usec/1000;
-	
+
 	    char* tmp_debug_msg;
         tmp_debug_msg = (char *) malloc(256*sizeof(char));
         if (tmp_debug_msg == NULL){
@@ -303,32 +322,32 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
             stcp_debug(__func__, "WARNING", "invalid value\n");
             return -1;
         }
-        time_out_in_seconds = (uint16_t)_value;
+        stcp_setup_data.stcp_timeout_sec = (uint16_t)_value;
     }
     else if (_setup_parameter == STCP_SET_TIMEOUT_IN_MILLISEC){
         if (_value < 0 || _value > 999){
             stcp_debug(__func__, "WARNING", "invalid value\n");
             return -1;
         }
-        time_out_in_milliseconds = (uint16_t)_value;
+        stcp_setup_data.stcp_timeout_millisec = (uint16_t)_value;
     }
     else if (_setup_parameter == STCP_SET_KEEP_ALIVE_TIMEOUT_IN_SEC){
         if (_value < 0 || _value > 30){
             stcp_debug(__func__, "WARNING", "invalid value\n");
             return -1;
         }
-        time_out_in_seconds = (uint16_t)_value;
+        stcp_setup_data.stcp_timeout_sec = (uint16_t)_value;
     }
     else if (_setup_parameter == STCP_SET_KEEP_ALIVE_TIMEOUT_IN_MILLISEC){
         if (_value < 0 || _value > 999){
             stcp_debug(__func__, "WARNING", "invalid value\n");
             return -1;
         }
-        time_out_in_milliseconds = (uint16_t)_value;
+        stcp_setup_data.stcp_timeout_millisec = (uint16_t)_value;
     }
     else if (_setup_parameter == STCP_SET_DEBUG_MODE){
         if ((int8_t)_value == STCP_DEBUG_ON || (int8_t)_value == STCP_DEBUG_OFF){
-            stcp_debug_mode_status = (int8_t)_value;
+            stcp_setup_data.stcp_debug_mode = (int8_t)_value;
         }
         else {
             stcp_debug(__func__, "WARNING", "wrong value\n");
@@ -336,14 +355,14 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
         }
     }
     else if(_setup_parameter == STCP_SET_SIZE_PER_RECV){
-        SIZE_PER_RECV = (uint32_t) _value;
+        stcp_setup_data.stcp_size_per_recv = (uint32_t) _value;
     }
     else if(_setup_parameter == STCP_SET_SIZE_PER_SEND){
-        SIZE_PER_SEND = (uint32_t) _value;
+        stcp_setup_data.stcp_size_per_send = (uint32_t) _value;
     }
     else if (_setup_parameter == STCP_SET_INFINITE_MODE_RETRY){
         if ((int8_t)_value == INFINITE_RETRY || (int8_t)_value == WITHOUT_RETRY){
-            infinite_retry_mode = (int8_t)_value;
+            stcp_setup_data.stcp_retry_mode = (int8_t)_value;
         }
         else {
             stcp_debug(__func__, "WARNING", "wrong value\n");
@@ -403,7 +422,7 @@ stcpSock stcp_server_init(char *ADDRESS, uint16_t PORT){
             
             if ((bind(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr))) != 0) { 
                 stcp_debug(__func__, "CRITICAL", "socket bind failed...\n");
-                if (infinite_retry_mode == 1) stcp_debug(__func__, "INFO", "trying to create a socket...\n");
+                if (stcp_setup_data.stcp_retry_mode == 1) stcp_debug(__func__, "INFO", "trying to create a socket...\n");
                 retval = -2; 
                 close(init_data.socket_f);
                 init_data.socket_f = 0;
@@ -430,9 +449,9 @@ stcpSock stcp_server_init(char *ADDRESS, uint16_t PORT){
                     }
                     else{
                         stcp_debug(__func__, "INFO", "server acccept the client...\n");
-                        if (time_out_in_seconds > 0 || time_out_in_milliseconds > 0){
+                        if (stcp_setup_data.stcp_timeout_sec > 0 || stcp_setup_data.stcp_timeout_millisec > 0){
                             struct timeval tv;
-                            tv.tv_sec = time_out_in_seconds;
+                            tv.tv_sec = stcp_setup_data.stcp_timeout_sec;
                             tv.tv_usec = 0;
                             setsockopt(init_data.connection_f, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
                         }
@@ -440,7 +459,7 @@ stcpSock stcp_server_init(char *ADDRESS, uint16_t PORT){
                 }
             }
         }
-    } while (retval < 0 && infinite_retry_mode == INFINITE_RETRY);
+    } while (retval < 0 && stcp_setup_data.stcp_retry_mode == INFINITE_RETRY);
     return init_data;
 }
 
@@ -1191,7 +1210,7 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
     }
 
     unsigned char *file_content = NULL;
-    file_content = (unsigned char *) malloc(SIZE_PER_SEND * sizeof(char));
+    file_content = (unsigned char *) malloc(stcp_setup_data.stcp_size_per_send * sizeof(char));
     if (file_content == NULL){
         stcp_debug(__func__, "ERROR", "failed to allocate memory for file_content\n");
         fclose(stcp_file);
@@ -1215,7 +1234,7 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
 		total_size = total_size + 1;
         file_content[size_recv] = buff[0];
         size_recv = size_recv + 1;
-        if (size_recv == (SIZE_PER_SEND * sizeof(char)) - 1 || bytes == 0){
+        if (size_recv == (stcp_setup_data.stcp_size_per_send * sizeof(char)) - 1 || bytes == 0){
             if (!_stcpWI->comm_protocol){
                 if (stcp_send_data(_init_data, file_content, size_recv) <= 0){
                     break;
@@ -1230,7 +1249,7 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
                     break;
                 #endif
             }
-            memset(file_content, 0x00, (SIZE_PER_SEND * sizeof(char)));
+            memset(file_content, 0x00, (stcp_setup_data.stcp_size_per_send * sizeof(char)));
             if (size_recv == 0){
                 break;
             }
@@ -1252,7 +1271,7 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
                         break
                     #endif
                 }
-                memset(file_content, 0x00, (SIZE_PER_RECV * sizeof(char)));
+                memset(file_content, 0x00, (stcp_setup_data.stcp_size_per_recv * sizeof(char)));
                 if (size_recv == 0){
                     break;
                 }
@@ -1314,7 +1333,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
     fd_set readfds;
 
     char *buffer = NULL;
-    uint32_t buffer_size = SIZE_PER_RECV;
+    uint32_t buffer_size = stcp_setup_data.stcp_size_per_recv;
     buffer = (char *) malloc(buffer_size * sizeof(char));
     if (buffer == NULL){
         stcp_debug(__func__, "ERROR", "failed to allocate memory\n");
@@ -1371,7 +1390,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
             
     if ((bind(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr))) != 0) { 
         stcp_debug(__func__, "CRITICAL", "socket bind failed...\n");
-        if (infinite_retry_mode == 1) stcp_debug(__func__, "INFO", "trying to create a socket...\n");
+        if (stcp_setup_data.stcp_retry_mode == 1) stcp_debug(__func__, "INFO", "trying to create a socket...\n");
         close(init_data.socket_f);
         init_data.socket_f = 0;
         stcp_http_webserver_free(_stcpWI, _stcpWH, &_stcpWList);
@@ -1432,9 +1451,9 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
             }
         }
 
-        if (keep_alive_time_out_in_seconds > 0 || keep_alive_time_out_in_milliseconds > 0){
-            tv_timer.tv_sec = keep_alive_time_out_in_seconds;
-            tv_timer.tv_usec = keep_alive_time_out_in_milliseconds * 1000;
+        if (stcp_setup_data.stcp_keepalive_sec > 0 || stcp_setup_data.stcp_keepalive_millisec > 0){
+            tv_timer.tv_sec = stcp_setup_data.stcp_keepalive_sec;
+            tv_timer.tv_usec = stcp_setup_data.stcp_keepalive_millisec * 1000;
             activity = select(max_sd + 1 , &readfds , NULL , NULL , &tv_timer);
         }
         else {
@@ -1447,8 +1466,8 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
 
         if (FD_ISSET(init_data.socket_f, &readfds) && stcp_server_state == STCP_SERVER_RUNING)   
         {   
-            tv_timer.tv_sec = time_out_in_seconds;
-            tv_timer.tv_usec = time_out_in_milliseconds * 1000;
+            tv_timer.tv_sec = stcp_setup_data.stcp_timeout_sec;
+            tv_timer.tv_usec = stcp_setup_data.stcp_timeout_millisec * 1000;
             if ((init_data.connection_f = accept(init_data.socket_f, (SA*)&cli, &len))<0){  
                 stcp_debug(__func__, "INFO", "accept failed\n");
             }
@@ -1466,14 +1485,14 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
             }
         }
         else if (stcp_server_state == STCP_SERVER_RUNING &&
-         (keep_alive_time_out_in_seconds > 0 || keep_alive_time_out_in_milliseconds > 0)
+         (stcp_setup_data.stcp_keepalive_sec > 0 || stcp_setup_data.stcp_keepalive_millisec > 0)
         ){
             for (idx_client = 0; idx_client<MAX_CLIENT; idx_client++){
                 if (keep_alive_cnt[idx_client] > 0 && client_fd[idx_client] > 0){
                     gettimeofday(&tv_timer, NULL);
                     if ((keep_alive_cnt[idx_client] +
-                      (keep_alive_time_out_in_seconds*1000) +
-                      keep_alive_time_out_in_milliseconds
+                      (stcp_setup_data.stcp_keepalive_sec*1000) +
+                      stcp_setup_data.stcp_keepalive_millisec
                      ) <=
                      ((tv_timer.tv_sec%60)*1000 + (tv_timer.tv_usec/1000))
                     ){
@@ -1503,7 +1522,11 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 #ifdef __STCP_SSL__
                     if (_stcpWI->comm_protocol){
                         ssl_ctx = NULL;
-                        ssl_ctx = SSL_CTX_new (SSLv23_server_method ());
+                        #ifdef SSLv23_server_method
+                            ssl_ctx = SSL_CTX_new (SSLv23_server_method ());
+                        #else
+                            ssl_ctx = SSL_CTX_new (TLSv1_2_server_method ());
+                        #endif
                         if (ssl_ctx == NULL){
                             stcp_debug(__func__, "WARNING", "unable to create new SSL context structure\n");
                         }
@@ -1540,8 +1563,8 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                             else if (keep_alive_cnt[idx_client] > 0){
                                 gettimeofday(&tv_timer, NULL);
                                 if ((keep_alive_cnt[idx_client] +
-                                  (keep_alive_time_out_in_seconds*1000) +
-                                  keep_alive_time_out_in_milliseconds
+                                  (stcp_setup_data.stcp_keepalive_sec*1000) +
+                                  stcp_setup_data.stcp_keepalive_millisec
                                  ) <=
                                  ((tv_timer.tv_sec%60)*1000 + (tv_timer.tv_usec/1000))
                                 ){
@@ -1727,8 +1750,8 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 stcp_connection_check:
                     if ((strcmp(_stcpWI->rcv_connection_type, "Keep-Alive") == 0 ||
                      strcmp(_stcpWI->rcv_connection_type, "keep-alive") == 0) &&
-                     (keep_alive_time_out_in_seconds > 0 ||
-                     keep_alive_time_out_in_milliseconds > 0)
+                     (stcp_setup_data.stcp_keepalive_sec > 0 ||
+                     stcp_setup_data.stcp_keepalive_millisec > 0)
                     ){
                         gettimeofday(&tv_timer, NULL);
                         keep_alive_cnt[idx_client] = (uint16_t) ((tv_timer.tv_sec%60)*1000 + (tv_timer.tv_usec/1000));
@@ -1819,18 +1842,18 @@ stcpSock stcp_client_init(char *ADDRESS, uint16_t PORT){
                 servaddr.sin_addr.s_addr = inet_addr(ADDRESS);
             }
 
-            if (time_out_in_seconds > 0 || time_out_in_milliseconds > 0){
+            if (stcp_setup_data.stcp_timeout_sec > 0 || stcp_setup_data.stcp_timeout_millisec > 0){
                 struct timeval tv;
-                tv.tv_sec = time_out_in_seconds;
-                tv.tv_usec = time_out_in_milliseconds * 1000;
+                tv.tv_sec = stcp_setup_data.stcp_timeout_sec;
+                tv.tv_usec = stcp_setup_data.stcp_timeout_millisec * 1000;
                 setsockopt(init_data.socket_f, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
             }
 
             stcp_debug(__func__, "INFO", "waiting for server...\n");
-            if (time_out_in_seconds > 0 || time_out_in_milliseconds > 0){
+            if (stcp_setup_data.stcp_timeout_sec > 0 || stcp_setup_data.stcp_timeout_millisec > 0){
                 struct timeval tv;
-                tv.tv_sec = (time_t) time_out_in_seconds;
-                tv.tv_usec = (suseconds_t) (time_out_in_milliseconds * 1000);
+                tv.tv_sec = (time_t) stcp_setup_data.stcp_timeout_sec;
+                tv.tv_usec = (suseconds_t) (stcp_setup_data.stcp_timeout_millisec * 1000);
                 retval = stcp_connect_with_timeout(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr), &tv);
                 if (retval != 0){
                     stcp_debug(__func__, "WARNING", "waiting for server timeout\n");
@@ -1846,7 +1869,7 @@ stcpSock stcp_client_init(char *ADDRESS, uint16_t PORT){
             init_data.connection_f = init_data.socket_f;
 	        stcp_debug(__func__, "INFO", "connected to the server..\n");
         }
-    } while (retval < 0 && infinite_retry_mode == (int8_t) INFINITE_RETRY);
+    } while (retval < 0 && stcp_setup_data.stcp_retry_mode == (int8_t) INFINITE_RETRY);
     return init_data;
 }
 
@@ -1884,18 +1907,18 @@ stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
                 servaddr.sin_addr.s_addr = inet_addr(ADDRESS);
             }
 
-            if (time_out_in_seconds > 0 || time_out_in_milliseconds > 0){
+            if (stcp_setup_data.stcp_timeout_sec > 0 || stcp_setup_data.stcp_timeout_millisec > 0){
                 struct timeval tv;
-                tv.tv_sec = (time_t) time_out_in_seconds;
-                tv.tv_usec = (suseconds_t) (time_out_in_milliseconds * 1000);
+                tv.tv_sec = (time_t) stcp_setup_data.stcp_timeout_sec;
+                tv.tv_usec = (suseconds_t) (stcp_setup_data.stcp_timeout_millisec * 1000);
                 setsockopt(init_data.socket_f, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
             }
 
             stcp_debug(__func__, "INFO", "waiting for server...\n");
-            if (time_out_in_seconds > 0 || time_out_in_milliseconds > 0){
+            if (stcp_setup_data.stcp_timeout_sec > 0 || stcp_setup_data.stcp_timeout_millisec > 0){
                 struct timeval tv;
-                tv.tv_sec = time_out_in_seconds;
-                tv.tv_usec = time_out_in_milliseconds * 1000;
+                tv.tv_sec = stcp_setup_data.stcp_timeout_sec;
+                tv.tv_usec = stcp_setup_data.stcp_timeout_millisec * 1000;
                 retval = stcp_connect_with_timeout(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr), &tv);
                 if (retval != 0){
                     stcp_debug(__func__, "WARNING", "waiting for server timeout\n");
@@ -1910,7 +1933,11 @@ stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
             }
 
             SSL_CTX *ssl_ctx = NULL;
-            ssl_ctx = SSL_CTX_new (SSLv23_client_method ());
+            #ifdef SSLv23_server_method
+                ssl_ctx = SSL_CTX_new (SSLv23_server_method ());
+            #else
+                ssl_ctx = SSL_CTX_new (TLSv1_2_server_method ());
+            #endif
 
             if (ssl_ctx == NULL){
                 stcp_debug(__func__, "WARNING", "unable to create new SSL context structure\n");
@@ -1927,7 +1954,7 @@ stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
 	        stcp_debug(__func__, "INFO", "connected to the server..\n");
             SSL_CTX_free(ssl_ctx);
         }
-    } while (retval < 0 && infinite_retry_mode == (int8_t) INFINITE_RETRY);
+    } while (retval < 0 && stcp_setup_data.stcp_retry_mode == (int8_t) INFINITE_RETRY);
     return init_data;
 }
 #endif
@@ -1982,7 +2009,7 @@ static int8_t stcp_socket_send_file(stcpSock _init_data, char *_file_name, int8_
     fseek(stcp_file, 0L, SEEK_SET);
 
     unsigned char *file_content = NULL;
-    file_content = (unsigned char *) malloc(SIZE_PER_SEND * sizeof(unsigned char));
+    file_content = (unsigned char *) malloc(stcp_setup_data.stcp_size_per_send * sizeof(unsigned char));
     if (file_content == NULL){
         stcp_debug(__func__, "ERROR", "failed to allocate memory for file_content\n");
         fclose(stcp_file);
@@ -1998,7 +2025,7 @@ static int8_t stcp_socket_send_file(stcpSock _init_data, char *_file_name, int8_
 		total_size = total_size + 1;
         file_content[size_recv] = buff[0];
         size_recv = size_recv + 1;
-        if (size_recv == (SIZE_PER_SEND * sizeof(char)) - 1 || bytes == 0){
+        if (size_recv == (stcp_setup_data.stcp_size_per_send * sizeof(char)) - 1 || bytes == 0){
             if (_socket_type == STCP_TCP){
                 if (stcp_send_data(_init_data, file_content, size_recv) <= 0){
                     break;
@@ -2014,7 +2041,7 @@ static int8_t stcp_socket_send_file(stcpSock _init_data, char *_file_name, int8_
                     break;
                 #endif
             }
-            memset(file_content, 0x00, (SIZE_PER_SEND * sizeof(char)));
+            memset(file_content, 0x00, (stcp_setup_data.stcp_size_per_send * sizeof(char)));
             if (size_recv == 0){
                 break;
             }
@@ -2037,7 +2064,7 @@ static int8_t stcp_socket_send_file(stcpSock _init_data, char *_file_name, int8_
                         break;
                     #endif
                 }
-                memset(file_content, 0x00, (SIZE_PER_SEND * sizeof(char)));
+                memset(file_content, 0x00, (stcp_setup_data.stcp_size_per_send * sizeof(char)));
                 if (size_recv == 0){
                     break;
                 }
@@ -2061,11 +2088,11 @@ int32_t stcp_send_data(stcpSock _init_data, unsigned char* buff, int32_t size_se
     struct timeval tv;
     gettimeofday(&tv, NULL);
     timeout_cstart = (uint16_t) ((tv.tv_sec%60)*1000 + tv.tv_usec/1000);
-    if (time_out_in_seconds == 0 && time_out_in_milliseconds == 0){
+    if (stcp_setup_data.stcp_timeout_sec == 0 && stcp_setup_data.stcp_timeout_millisec == 0){
         timeout_cvalue = (uint16_t) 3000;
     }
     else {
-        timeout_cvalue = (uint16_t) (time_out_in_seconds*1000 + time_out_in_milliseconds);
+        timeout_cvalue = (uint16_t) (stcp_setup_data.stcp_timeout_sec*1000 + stcp_setup_data.stcp_timeout_millisec);
     }
     do {
         ioctl(_init_data.connection_f, TIOCOUTQ, &bytes_aviable);
@@ -2079,7 +2106,7 @@ int32_t stcp_send_data(stcpSock _init_data, unsigned char* buff, int32_t size_se
     } while (bytes_aviable > 0);
     bytes = (int32_t) write(_init_data.connection_f, buff, size_set*sizeof(char));
     if (bytes >= 0) stcp_debug(__func__, "INFO", "success to send %d data\n", bytes);
-    else if (time_out_in_seconds > 0 || time_out_in_milliseconds > 0){
+    else if (stcp_setup_data.stcp_timeout_sec > 0 || stcp_setup_data.stcp_timeout_millisec > 0){
         stcp_debug(__func__, "WARNING", "send %d data. request timeout\n", bytes);
     }
     else {
@@ -2096,7 +2123,7 @@ int32_t stcp_recv_data(stcpSock _init_data, unsigned char* buff, int32_t size_se
     int32_t bytes;
     bytes = (int32_t) read(_init_data.connection_f, buff, size_set*sizeof(char));
     if (bytes >= 0) stcp_debug(__func__, "INFO", "success to receive %d data\n", bytes);
-    else if (time_out_in_seconds > 0 || time_out_in_milliseconds > 0){
+    else if (stcp_setup_data.stcp_timeout_sec > 0 || stcp_setup_data.stcp_timeout_millisec > 0){
         stcp_debug(__func__, "WARNING", "receive %d data. request timeout or finished\n", bytes);
     }
     else {
@@ -2114,11 +2141,11 @@ int32_t stcp_ssl_send_data(stcpSock _init_data, unsigned char* buff, int32_t siz
     struct timeval tv;
     gettimeofday(&tv, NULL);
     timeout_cstart = (uint16_t) ((tv.tv_sec%60)*1000 + tv.tv_usec/1000);
-    if (time_out_in_seconds == 0 && time_out_in_milliseconds == 0){
+    if (stcp_setup_data.stcp_timeout_sec == 0 && stcp_setup_data.stcp_timeout_millisec == 0){
         timeout_cvalue = (uint16_t) 3000;
     }
     else {
-        timeout_cvalue = (uint16_t) (time_out_in_seconds*1000 + time_out_in_milliseconds);
+        timeout_cvalue = (uint16_t) (stcp_setup_data.stcp_timeout_sec*1000 + stcp_setup_data.stcp_timeout_millisec);
     }
     do {
         ioctl(_init_data.connection_f, TIOCOUTQ, &bytes_aviable);
@@ -2132,7 +2159,7 @@ int32_t stcp_ssl_send_data(stcpSock _init_data, unsigned char* buff, int32_t siz
     } while (bytes_aviable > 0);
     bytes = (int32_t) SSL_write(_init_data.ssl_connection_f, buff, size_set*sizeof(char));
     if (bytes >= 0) stcp_debug(__func__, "INFO", "success to send %d data\n", bytes);
-    else if (time_out_in_seconds > 0 || time_out_in_milliseconds > 0){
+    else if (stcp_setup_data.stcp_timeout_sec > 0 || stcp_setup_data.stcp_timeout_millisec > 0){
         stcp_debug(__func__, "WARNING", "send %d data. request timeout\n", bytes);
     }
     else {
@@ -2149,7 +2176,7 @@ int32_t stcp_ssl_recv_data(stcpSock _init_data, unsigned char* buff, int32_t siz
     int32_t bytes;
     bytes = (int32_t) SSL_read(_init_data.ssl_connection_f, buff, size_set*sizeof(char));
     if (bytes >= 0) stcp_debug(__func__, "INFO", "success to receive %d data\n", bytes);
-    else if (time_out_in_seconds > 0 || time_out_in_milliseconds > 0){
+    else if (stcp_setup_data.stcp_timeout_sec > 0 || stcp_setup_data.stcp_timeout_millisec > 0){
         stcp_debug(__func__, "WARNING", "receive %d data. request timeout or finished\n", bytes);
     }
     else {
@@ -2714,7 +2741,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         );
     }
     stcp_debug(__func__, "INFO", "HTTP Request:\n");
-    if (stcp_debug_mode_status == STCP_DEBUG_ON){
+    if (stcp_setup_data.stcp_debug_mode == STCP_DEBUG_ON){
         printf("%s\n", message_request);
     }
 
@@ -2814,7 +2841,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
     int8_t transfer_encoding = 0;
 
     unsigned char *response_tmp = NULL;
-    response_tmp = (unsigned char *) malloc((SIZE_PER_RECV + 1) * sizeof(unsigned char));
+    response_tmp = (unsigned char *) malloc((stcp_setup_data.stcp_size_per_recv + 1) * sizeof(unsigned char));
     if (response_tmp == NULL){
         free(protocol);
         free(response);
@@ -2826,13 +2853,13 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
 
     memset(response, 0x00, 2 * sizeof(char));
     do {
-        memset(response_tmp, 0x00, SIZE_PER_RECV + 1);
+        memset(response_tmp, 0x00, stcp_setup_data.stcp_size_per_recv + 1);
         if (strcmp(protocol, "http") == 0){
-            bytes = stcp_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
+            bytes = stcp_recv_data(socket_f, response_tmp, stcp_setup_data.stcp_size_per_recv);
         }
         else {
             #ifdef __STCP_SSL__
-            bytes = stcp_ssl_recv_data(socket_f, response_tmp, SIZE_PER_RECV);
+            bytes = stcp_ssl_recv_data(socket_f, response_tmp, stcp_setup_data.stcp_size_per_recv);
             #endif
         }
         if (bytes == -1){
@@ -2840,7 +2867,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
             break;
         }
         else if (bytes == 0){
-            if (recv_trytimes == max_recv_try_times) {
+            if (recv_trytimes == stcp_setup_data.stcp_max_recv_try) {
                 recv_trytimes = 0;
                 break;
             }
@@ -2911,7 +2938,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
                                         stcp_debug(__func__, "ERROR", "failed to open config file\n");
                                     }
                                     else {
-                                        memset(response_tmp, 0x00, (SIZE_PER_RECV + 1)*sizeof(char));
+                                        memset(response_tmp, 0x00, (stcp_setup_data.stcp_size_per_recv + 1)*sizeof(char));
                                         memcpy(response_tmp, response + total_bytes, bytes);
                                         fprintf(download_file, "%s", response_tmp);
                                     }
@@ -2976,7 +3003,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
 
         try_recv:
             if(bytes == 0){
-                stcp_debug(__func__, "WARNING", "try recv process (%i/%i)\n", recv_trytimes, max_recv_try_times);
+                stcp_debug(__func__, "WARNING", "try recv process (%i/%i)\n", recv_trytimes, stcp_setup_data.stcp_max_recv_try);
             }
     } while (bytes >= 0);
 
@@ -3011,7 +3038,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         free(response_tmp);
         response_tmp = NULL;
         if (strlen((char *) response) == 0){
-            if (time_out_in_seconds == 0){
+            if (stcp_setup_data.stcp_timeout_sec == 0){
                 response = (unsigned char *) realloc(response, 30*sizeof(unsigned char));
                 strcpy((char *) response, "bad connection or bad request");
                 return response;
