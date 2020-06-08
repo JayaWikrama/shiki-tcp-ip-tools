@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.08.20.06.02
+    ver         : 3.09.20.06.08
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -43,7 +43,7 @@
 #endif
 
 #define SA struct sockaddr
-#define STCP_VER "3.07.20.06.02"
+#define STCP_VER "3.09.20.06.08"
 
 typedef enum {
     #ifdef __STCP_WEBSERVER__
