@@ -114,7 +114,7 @@ static unsigned long stcp_get_content_length(char *_text_source);
 static unsigned char *stcp_select_content(unsigned char *response, uint32_t _content_length);
 
 void stcp_debug(const char *function_name, char *debug_type, char *debug_msg, ...){
-	if (stcp_setup_data.stcp_debug_mode == 1 || strcmp(debug_type, "INFO") != 0){
+	if (stcp_setup_data.stcp_debug_mode == STCP_DEBUG_ON || strcmp(debug_type, "INFO") != 0){
         struct tm *d_tm;
         struct timeval tm_debug;
         uint16_t msec = 0;
@@ -2293,7 +2293,6 @@ stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
 
             unsigned char* sslCertKey = NULL;
             stcp_ssl_certkey_type certkeyType = 0;
-            printf("address: %s\n", ADDRESS);
             shilink_print(stcp_certkey_collection);
             sslCertKey = stcp_ssl_get_cert(ADDRESS, &certkeyType);
             int8_t cert_flag = 0;
@@ -2312,9 +2311,6 @@ stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
                 }
                 stcp_debug(__func__, "INFO", "succes to use certificate\n");
                 cert_flag = 1;
-            }
-            else {
-                stcp_debug(__func__, "WARNING", "certificate not found\n");
             }
             sslCertKey = NULL;
             sslCertKey = stcp_ssl_get_key(ADDRESS, &certkeyType);
@@ -2603,99 +2599,68 @@ int32_t stcp_ssl_recv_data(stcpSock _init_data, unsigned char* buff, int32_t siz
 }
 #endif
 
-int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_point, uint16_t *_port){
+int8_t stcp_url_parser(char *_url, int8_t *_protocol, stcpSHead *_host, stcpSHead *_end_point, uint16_t *_port){
     if (strncmp(_url, "http://", 7) == 0 || strncmp(_url, "https://", 8) == 0){
-        char *host = NULL;
-        char *end_point = NULL;
+        stcpSHead sub_tmp;
         char *buff = NULL;
-        host = (char *) malloc(8*sizeof(char));
-        if (host == NULL){
-            stcp_debug(__func__, "ERROR", "failed to allocate host valriable memory\n");
-            return -1;
-        }
-        end_point = (char *) malloc(2*sizeof(char));
-        if (end_point == NULL){
-            free(host);
-            host = NULL;
-            stcp_debug(__func__, "ERROR", "failed to allocate end_point valriable memory\n");
-            return -1;
-        }
         buff = (char *) malloc(9*sizeof(char));
         if (buff == NULL){
-            free(host);
-            free(end_point);
-            host = NULL;
-            end_point = NULL;
             stcp_debug(__func__, "ERROR", "failed to allocate buff valriable memory\n");
             return -1;
         }
         uint16_t idx_char_url = 0;
         uint16_t idx_char_buff = 0;
         memset(buff, 0x00, 9*sizeof(char));
-        strcpy(_end_point, "");
-        memset(end_point, 0x00, 2*sizeof(char));
         if (strncmp(_url, "http://", 7) == 0){
-            strcpy(_protocol, "http");
+            *_protocol = 0;
             *_port = 80;
             idx_char_url = 7;
         }
         else {
-            strcpy(_protocol, "https");
+            *_protocol = 1;
             *_port = 443;
             idx_char_url = 8;
         }
+        sub_tmp.stcp_sub_pos = idx_char_url;
+        sub_tmp.stcp_sub_size = 0;
         while(_url[idx_char_url] != '/' && _url[idx_char_url] != ':' && _url[idx_char_url] != 0x00){
-            host = (char *) realloc(host, (idx_char_buff + 2)*sizeof(char));
-            host[idx_char_buff] = _url[idx_char_url];
-            host[idx_char_buff + 1] = 0x00;
             idx_char_url++;
-            idx_char_buff++;
+            sub_tmp.stcp_sub_size++;
         }
-        strcpy(_host, host);
-        free(host);
-        host = NULL;
+        *_host = sub_tmp;
+        sub_tmp.stcp_sub_pos = 6;
+        sub_tmp.stcp_sub_size = 1;
+        *_end_point = sub_tmp;
         if (_url[idx_char_url] == 0x00){
-            free(end_point);
             free(buff);
-            end_point = NULL;
             buff = NULL;
-            strcpy(_end_point, "/");
             return 0;
         }
-        idx_char_url++;
-        idx_char_buff = 0;
-        if (_url[idx_char_url - 1] == ':'){
+        if (_url[idx_char_url] == ':'){
+            idx_char_url++;
             while(_url[idx_char_url] != '/' && _url[idx_char_url] != 0x00){
                 buff[idx_char_buff] = _url[idx_char_url];
                 idx_char_url++;
                 idx_char_buff++;
             }
             *_port = (uint16_t) atoi(buff);
-            idx_char_url++;
         }
         memset(buff, 0x00, 9*sizeof(char));
-        if (_url[idx_char_url - 1] == 0x00){
-            free(end_point);
+        if (_url[idx_char_url] == 0x00){
             free(buff);
-            end_point = NULL;
             buff = NULL;
-            strcpy(_end_point, "/");
             return 0;
         }
-        idx_char_buff = 0;
+        sub_tmp.stcp_sub_pos = idx_char_url;
+        sub_tmp.stcp_sub_size = 0;
         while(_url[idx_char_url] != 0x00){
-            end_point = (char *) realloc(end_point, (idx_char_buff + 2)*sizeof(char));
-            end_point[idx_char_buff] = _url[idx_char_url];
-            end_point[idx_char_buff + 1] = 0x00;
             idx_char_url++;
-            idx_char_buff++;
+            sub_tmp.stcp_sub_size++;
         }
-        if (strlen(end_point) > 0){
-            strcpy(_end_point, end_point);
+        if (sub_tmp.stcp_sub_size > 0){
+            *_end_point = sub_tmp;
         }
-        free(end_point);
         free(buff);
-        end_point = NULL;
         buff = NULL;
     }
     else {
@@ -2906,12 +2871,12 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         stcp_debug(__func__, "ERROR", "bad STCP request. process aborted.\n");
         return NULL;
     }
-    char *message_request= NULL;
-    char *host = NULL;
-    char *end_point = NULL;
+    unsigned char *stcp_trx_buffer = NULL;
     unsigned char *response = NULL;
-    char *protocol = NULL;
     char *boundary = NULL;
+    stcpSHead host = {0, 0};
+    stcpSHead end_point = {0 , 0};
+    int8_t protocol = 0;
     uint32_t length_of_message = 0;
     uint16_t port = 0;
 
@@ -2924,208 +2889,184 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
      "\r\n"
      "Content-Length: 00000\r\n\r\n"
      "\r\n\r\n");
-    message_request = (char *) malloc((length_of_message + 1) * sizeof(char));
-    if (message_request == NULL){
+    stcp_trx_buffer = (unsigned char *) malloc((length_of_message + 1) * sizeof(unsigned char));
+    if (stcp_trx_buffer == NULL){
         stcp_debug(__func__, "ERROR", "failed to allocate message variable memory\n");
-        return NULL;
-    }
-    host = (char *) malloc(strlen(_url) * sizeof(char));
-    if (host == NULL){
-        stcp_debug(__func__, "ERROR", "failed to allocate host variable memory\n");
-        free(message_request);
-        message_request = NULL;
-        return NULL;
-    }
-    end_point = (char *) malloc(strlen(_url) * sizeof(char));
-    if (end_point == NULL){
-        stcp_debug(__func__, "ERROR", "failed to allocate end_point variable memory\n");
-        free(message_request);
-        free(host);
-        message_request = NULL;
-        host = NULL;
-        return NULL;
-    }
-    protocol = (char *) malloc(6 * sizeof(char));
-    if (protocol == NULL){
-        stcp_debug(__func__, "ERROR", "failed to allocate protocol variable memory\n");
-        free(message_request);
-        free(host);
-        free(end_point);
-        message_request = NULL;
-        host = NULL;
-        end_point = NULL;
         return NULL;
     }
     response = (unsigned char *) malloc(2 * sizeof(unsigned char));
     if (response == NULL){
         stcp_debug(__func__, "ERROR", "failed to allocate response variable memory\n");
-        free(message_request);
-        free(host);
-        free(end_point);
-        free(protocol);
-        message_request = NULL;
-        host = NULL;
-        end_point = NULL;
-        protocol = NULL;
+        free(stcp_trx_buffer);
+        stcp_trx_buffer = NULL;
         return NULL;
     }
-    boundary = (char *) malloc(32 * sizeof(unsigned char));
-    if (boundary == NULL){
-        stcp_debug(__func__, "ERROR", "failed to allocate response variable memory\n");
-        free(message_request);
-        free(host);
-        free(end_point);
-        free(protocol);
-        free(response);
-        message_request = NULL;
-        host = NULL;
-        end_point = NULL;
-        protocol = NULL;
-        response = NULL;
-        return NULL;
+    if (_header != NULL){
+        if (strstr(_header, "multipart/form-data") != NULL){
+            boundary = (char *) malloc(32 * sizeof(unsigned char));
+            if (boundary == NULL){
+                stcp_debug(__func__, "ERROR", "failed to allocate response variable memory\n");
+                free(stcp_trx_buffer);
+                free(response);
+                stcp_trx_buffer = NULL;
+                response = NULL;
+                return NULL;
+            }
+        }
     }
-    int8_t retval = stcp_url_parser(_url, host, protocol, end_point, &port);
+    int8_t retval = stcp_url_parser(_url, &protocol, &host, &end_point, &port);
     if (retval == -1){
-        free(message_request);
-        free(host);
-        free(end_point);
-        free(protocol);
+        free(stcp_trx_buffer);
         free(response);
-        free(boundary);
-        message_request = NULL;
-        host = NULL;
-        end_point = NULL;
-        protocol = NULL;
+        stcp_trx_buffer = NULL;
         response = NULL;
-        boundary = NULL;
+        if (_header != NULL){
+            if (strstr(_header, "multipart/form-data") != NULL){
+                free(boundary);
+                boundary = NULL;
+            }
+        }
         return NULL;
     }
-    stcp_debug(__func__, "INFO", "protocol: %s\n", protocol);
-    stcp_debug(__func__, "INFO", "host: %s\n", host);
-    stcp_debug(__func__, "INFO", "end point: %s\n", end_point);
-    stcp_debug(__func__, "INFO", "port: %d\n", port);
-    uint16_t length_tmp = 0;
-    length_tmp = strlen(host);
-    length_of_message = length_of_message + length_tmp;
-    host = (char *) realloc(host, (length_tmp + 1)*sizeof(char));
-    length_tmp = strlen(end_point);
-    length_of_message = length_of_message + length_tmp;
-    end_point = (char *) realloc(end_point, (length_tmp + 1)*sizeof(char));
-    
+
     stcpSock socket_f;
-    if (strcmp(protocol, "http")==0){
-        socket_f = stcp_client_init(host, port);
+    /* use stcp_trx_buffer variable for store host_name variable (temporary) to reduce memory allocation */
+    memset(stcp_trx_buffer, 0x00, (length_of_message * sizeof(char)));
+    memcpy(stcp_trx_buffer, _url + host.stcp_sub_pos, host.stcp_sub_size);
+    if (protocol==0){
+        socket_f = stcp_client_init((char *) stcp_trx_buffer, port);
     }
     else {
         #ifdef __STCP_SSL__
-        socket_f = stcp_ssl_client_init(host, port);
+        socket_f = stcp_ssl_client_init((char *) stcp_trx_buffer, port);
         #else
         stcp_debug(__func__, "WARNING", "please enable __STCP_SSL__ on shiki-tcp-ip-tools.h\n");
-        free(message_request);
+        free(stcp_trx_buffer);
         free(host);
         free(end_point);
         free(protocol);
         free(response);
-        free(boundary);
-        message_request = NULL;
+        stcp_trx_buffer = NULL;
         host = NULL;
         end_point = NULL;
         protocol = NULL;
         response = NULL;
-        boundary = NULL;
+        if (_header != NULL){
+            if (strstr(_header, "multipart/form-data") != NULL){
+                free(boundary);
+                boundary = NULL;
+            }
+        }
         return NULL;
         #endif
     }
     if (socket_f.socket_f <= 0){
-        free(message_request);
-        free(host);
-        free(end_point);
-        free(protocol);
+        free(stcp_trx_buffer);
         free(boundary);
-        message_request = NULL;
-        host = NULL;
-        end_point = NULL;
-        protocol = NULL;
-        boundary = NULL;
+        stcp_trx_buffer = NULL;
+        if (_header != NULL){
+            if (strstr(_header, "multipart/form-data") != NULL){
+                free(boundary);
+                boundary = NULL;
+            }
+        }
         response = (unsigned char *) realloc(response, 17*sizeof(unsigned char));
         strcpy((char *) response, "no route to host");
         return response;
     }
-
+    length_of_message = length_of_message + host.stcp_sub_size + end_point.stcp_sub_size;
     if (_header != NULL && _content != NULL){
+        char buff[16];
+        memset(buff, 0x00, sizeof(buff));
+        sprintf(buff, "%li\r\n\r\n", request_length);
         if (_request_type != STCP_REQ_UPLOAD_FILE){
             length_of_message = length_of_message + strlen(_header) + strlen(_content);
-            message_request = (char *) realloc(message_request, (length_of_message + 1)*sizeof(char));
-            memset(message_request, 0x00, (length_of_message + 1)*sizeof(char));
-            sprintf(message_request,
-             "%s /%s HTTP/1.1\r\n"
-             "Host: %s\r\n"
-             "%s\r\n"
-             "Content-Length: %li\r\n\r\n"
-             "%s\r\n\r\n",
-             _req_type,
-             end_point,
-             host,
-             _header,
-             request_length,
-             _content
+            stcp_trx_buffer = (unsigned char *) realloc(stcp_trx_buffer, (length_of_message + 1)*sizeof(unsigned char));
+            memset(stcp_trx_buffer, 0x00, (length_of_message + 1)*sizeof(unsigned char));
+            sprintf((char *) stcp_trx_buffer, "%s ", _req_type);
+            strncat((char *) stcp_trx_buffer, _url + end_point.stcp_sub_pos, end_point.stcp_sub_size);
+            strcat((char *) stcp_trx_buffer,
+             " HTTP/1.1\r\n"
+             "Host: "
             );
+            strncat((char *) stcp_trx_buffer, _url + host.stcp_sub_pos, host.stcp_sub_size);
+            strcat((char *) stcp_trx_buffer, "\r\n");
+            strcat((char *) stcp_trx_buffer, _header);
+            strcat((char *) stcp_trx_buffer,
+             "\r\n"
+             "Content-Length: "
+            );
+            strcat((char *) stcp_trx_buffer, buff);
+            strcat((char *) stcp_trx_buffer, _content);
+            strcat((char *) stcp_trx_buffer, "\r\n\r\n");
         }
         else {
             if (strstr(_header, "multipart/form-data") == NULL){
                 length_of_message = length_of_message + strlen(_header);
-                message_request = (char *) realloc(message_request, (length_of_message + 1)*sizeof(char));
-                memset(message_request, 0x00, (length_of_message + 1)*sizeof(char));
-                sprintf(message_request,
-                 "%s /%s HTTP/1.1\r\n"
-                 "Host: %s\r\n"
-                 "%s\r\n"
-                 "Content-Length: %li\r\n\r\n",
-                 _req_type,
-                 end_point,
-                 host,
-                 _header,
-                 request_length
+                stcp_trx_buffer = (unsigned char *) realloc(stcp_trx_buffer, (length_of_message + 1)*sizeof(unsigned char));
+                memset(stcp_trx_buffer, 0x00, (length_of_message + 1)*sizeof(char));
+                sprintf((char *) stcp_trx_buffer, "%s ", _req_type);
+                strncat((char *) stcp_trx_buffer, _url + end_point.stcp_sub_pos, end_point.stcp_sub_size);
+                strcat((char *) stcp_trx_buffer,
+                 " HTTP/1.1\r\n"
+                 "Host: "
                 );
+                strncat((char *) stcp_trx_buffer, _url + host.stcp_sub_pos, host.stcp_sub_size);
+                strcat((char *) stcp_trx_buffer, "\r\n");
+                strcat((char *) stcp_trx_buffer, _header);
+                strcat((char *) stcp_trx_buffer,
+                 "\r\n"
+                 "Content-Length: "
+                );
+                strcat((char *) stcp_trx_buffer, buff);
             }
             else {
                 uint16_t part_content_length = 0;
                 memset(boundary, 0x00, 32*sizeof(char));
                 char *header_part = (char *) stcp_http_generate_multipart_header(_header, boundary, &part_content_length);
                 if (header_part != NULL){
+                    memset(buff, 0x00, sizeof(buff));
+                    sprintf(buff, "%li\r\n", request_length + part_content_length);
                     length_of_message = length_of_message + strlen(header_part);
-                    message_request = (char *) realloc(message_request, (length_of_message + 1)*sizeof(char));
-                    memset(message_request, 0x00, (length_of_message + 1)*sizeof(char));
-                    sprintf(message_request,
-                     "%s /%s HTTP/1.1\r\n"
-                     "Host: %s\r\n"
-                     "Content-Length: %li\r\n"
-                     "%s",
-                     _req_type,
-                     end_point,
-                     host,
-                     request_length + part_content_length,
-                     header_part
+                    stcp_trx_buffer = (unsigned char *) realloc(stcp_trx_buffer, (length_of_message + 1)*sizeof(unsigned char));
+                    memset(stcp_trx_buffer, 0x00, (length_of_message + 1)*sizeof(unsigned char));
+                    sprintf((char *) stcp_trx_buffer, "%s ", _req_type);
+                    strncat((char *) stcp_trx_buffer, _url + end_point.stcp_sub_pos, end_point.stcp_sub_size);
+                    strcat((char *) stcp_trx_buffer,
+                     " HTTP/1.1\r\n"
+                     "Host: "
                     );
+                    strncat((char *) stcp_trx_buffer, _url + host.stcp_sub_pos, host.stcp_sub_size);
+                    strcat((char *) stcp_trx_buffer, "\r\n");
+                    strcat((char  *) stcp_trx_buffer, _header);
+                    strcat((char *) stcp_trx_buffer,
+                     "\r\n"
+                     "Content-Length: "
+                    );
+                    strcat((char *) stcp_trx_buffer, buff);
+                    strcat((char *) stcp_trx_buffer, header_part);
                     free(header_part);
                     header_part = NULL;
                 }
                 else {
                     stcp_debug(__func__, "WARNING", "failed to generate multipart/form-data\n");
                     length_of_message = length_of_message + strlen(_header);
-                    message_request = (char *) realloc(message_request, (length_of_message + 1)*sizeof(char));
-                    memset(message_request, 0x00, (length_of_message + 1)*sizeof(char));
-                    sprintf(message_request,
-                     "%s /%s HTTP/1.1\r\n"
-                     "Host: %s\r\n"
-                     "%s\r\n"
-                     "Content-Length: %li\r\n\r\n",
-                     _req_type,
-                     end_point,
-                     host,
-                     _header,
-                     request_length
+                    stcp_trx_buffer = (unsigned char *) realloc(stcp_trx_buffer, (length_of_message + 1)*sizeof(unsigned char));
+                    memset(stcp_trx_buffer, 0x00, (length_of_message + 1)*sizeof(unsigned char));
+                    sprintf((char *) stcp_trx_buffer, "%s ", _req_type);
+                    strncat((char *) stcp_trx_buffer, _url + end_point.stcp_sub_pos, end_point.stcp_sub_size);
+                    strcat((char *) stcp_trx_buffer,
+                     " HTTP/1.1\r\n"
+                     "Host: "
                     );
+                    strncat((char *) stcp_trx_buffer, _url + host.stcp_sub_pos, host.stcp_sub_size);
+                    strcat((char *) stcp_trx_buffer, "\r\n");
+                    strcat((char *) stcp_trx_buffer, _header);
+                    strcat((char *) stcp_trx_buffer,
+                     "\r\n"
+                     "Content-Length: "
+                    );
+                    strcat((char *) stcp_trx_buffer, buff);
                     free(boundary);
                     boundary = NULL;
                 }
@@ -3134,32 +3075,34 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
     }
     else if (_content == NULL && _header != NULL){
         length_of_message = length_of_message + strlen(_header);
-        message_request = (char *) realloc(message_request, (length_of_message + 1)*sizeof(char));
-        memset(message_request, 0x00, (length_of_message + 1)*sizeof(char));
-        sprintf(message_request,
-         "%s /%s HTTP/1.1\r\n"
-         "Host: %s\r\n"
-         "%s\r\n\r\n",
-         _req_type,
-         end_point,
-         host,
-         _header
+        stcp_trx_buffer = (unsigned char *) realloc(stcp_trx_buffer, (length_of_message + 1)*sizeof(unsigned char));
+        memset(stcp_trx_buffer, 0x00, (length_of_message + 1)*sizeof(unsigned char));
+        sprintf((char *) stcp_trx_buffer, "%s ", _req_type);
+        strncat((char *) stcp_trx_buffer, _url + end_point.stcp_sub_pos, end_point.stcp_sub_size);
+        strcat((char *) stcp_trx_buffer,
+         " HTTP/1.1\r\n"
+         "Host: "
         );
+        strncat((char *) stcp_trx_buffer, _url + host.stcp_sub_pos, host.stcp_sub_size);
+        strcat((char *) stcp_trx_buffer, "\r\n");
+        strcat((char *) stcp_trx_buffer, _header);
+        strcat((char *) stcp_trx_buffer, "\r\n\r\n");
     }
     else if (_header == NULL){
-        message_request = (char *) realloc(message_request, (length_of_message + 1)*sizeof(char));
-        memset(message_request, 0x00, (length_of_message + 1)*sizeof(char));
-        sprintf(message_request,
-         "%s /%s HTTP/1.1\r\n"
-         "Host: %s\r\n\r\n",
-         _req_type,
-         end_point,
-         host
+        stcp_trx_buffer = (unsigned char *) realloc(stcp_trx_buffer, (length_of_message + 1)*sizeof(unsigned char));
+        memset(stcp_trx_buffer, 0x00, (length_of_message + 1)*sizeof(unsigned char));
+        sprintf((char *) stcp_trx_buffer, "%s ", _req_type);
+        strncat((char *) stcp_trx_buffer, _url + end_point.stcp_sub_pos, end_point.stcp_sub_size);
+        strcat((char *) stcp_trx_buffer,
+         " HTTP/1.1\r\n"
+         "Host: "
         );
+        strncat((char *) stcp_trx_buffer, _url + host.stcp_sub_pos, host.stcp_sub_size);
+        strcat((char *) stcp_trx_buffer, "\r\n\r\n");
     }
     stcp_debug(__func__, "INFO", "HTTP Request:\n");
     if (stcp_setup_data.stcp_debug_mode == STCP_DEBUG_ON){
-        printf("%s\n", message_request);
+        printf("%s\n", stcp_trx_buffer);
     }
 
     if (_request_type == STCP_REQ_DOWNLOAD_CONTENT){
@@ -3168,11 +3111,13 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
             uint16_t idx_stcp_file_name = 0;
             memset(stcp_file_name, 0x00, sizeof(stcp_file_name));
             memset(stcp_file_name_tmp, 0x00, sizeof(stcp_file_name_tmp));
-            for (idx_stcp_file_name = 0; idx_stcp_file_name<strlen(end_point); idx_stcp_file_name++){
-                if (end_point[strlen(end_point) - 1 - idx_stcp_file_name] == '/' || idx_stcp_file_name == STCP_MAX_LENGTH_FILE_NAME - 1){
+            for (idx_stcp_file_name = 0; idx_stcp_file_name<end_point.stcp_sub_size; idx_stcp_file_name++){
+                if (_url[(end_point.stcp_sub_pos + end_point.stcp_sub_size) - 1 - idx_stcp_file_name] == '/' ||
+                 idx_stcp_file_name == STCP_MAX_LENGTH_FILE_NAME - 1
+                ){
                     break;
                 }
-                stcp_file_name_tmp[idx_stcp_file_name] = end_point[strlen(end_point) - 1 - idx_stcp_file_name];
+                stcp_file_name_tmp[idx_stcp_file_name] = _url[(end_point.stcp_sub_pos + end_point.stcp_sub_size) - 1 - idx_stcp_file_name];
             }
             for (idx_stcp_file_name=0; idx_stcp_file_name<strlen(stcp_file_name_tmp); idx_stcp_file_name++){
                 stcp_file_name[idx_stcp_file_name] = stcp_file_name_tmp[strlen(stcp_file_name_tmp) - 1 - idx_stcp_file_name];
@@ -3199,8 +3144,8 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         } while (download_file == NULL && try_times > 0);
     }
 
-    if (strcmp(protocol, "http") == 0){
-        stcp_send_data(socket_f, (unsigned char *) message_request, strlen(message_request));
+    if (protocol == 0){
+        stcp_send_data(socket_f, stcp_trx_buffer, strlen((char *) stcp_trx_buffer));
         if (_request_type == STCP_REQ_UPLOAD_FILE){
             stcp_send_file(socket_f, _content);
             if (strstr(_header, "multipart/form-data") != NULL && boundary != NULL){
@@ -3220,7 +3165,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
     }
     else {
         #ifdef __STCP_SSL__
-        stcp_ssl_send_data(socket_f, (unsigned char *) message_request, strlen(message_request));
+        stcp_ssl_send_data(socket_f, (unsigned char *) stcp_trx_buffer, strlen((char *) stcp_trx_buffer));
         if (_request_type == STCP_REQ_UPLOAD_FILE){
             stcp_ssl_send_file(socket_f, _content);
             if (strstr(_header, "multipart/form-data") != NULL && boundary != NULL){
@@ -3239,14 +3184,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         }
         #endif
     }
-
-    free(message_request);
-    free(host);
-    free(end_point);
-    message_request = NULL;
-    host = NULL;
-    end_point = NULL;
-
+    
     int32_t bytes = 0;
     uint32_t total_bytes = 0;
     uint32_t total_bytes_tmp = 0;
@@ -3257,26 +3195,16 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
     uint8_t recv_trytimes = 0;
     int8_t transfer_encoding = 0;
 
-    unsigned char *response_tmp = NULL;
-    response_tmp = (unsigned char *) malloc((stcp_setup_data.stcp_size_per_recv + 1) * sizeof(unsigned char));
-    if (response_tmp == NULL){
-        free(protocol);
-        free(response);
-        protocol = NULL;
-        response = NULL;
-        stcp_debug(__func__, "ERROR", "failed to allocate response_tmp memory\n");
-        return 0;
-    }
-
+    stcp_trx_buffer = (unsigned char *) realloc(stcp_trx_buffer, (stcp_setup_data.stcp_size_per_recv + 1) * sizeof(unsigned char));
     memset(response, 0x00, 2 * sizeof(char));
     do {
-        memset(response_tmp, 0x00, stcp_setup_data.stcp_size_per_recv + 1);
-        if (strcmp(protocol, "http") == 0){
-            bytes = stcp_recv_data(socket_f, response_tmp, stcp_setup_data.stcp_size_per_recv);
+        memset(stcp_trx_buffer, 0x00, stcp_setup_data.stcp_size_per_recv + 1);
+        if (protocol == 0){
+            bytes = stcp_recv_data(socket_f, stcp_trx_buffer, stcp_setup_data.stcp_size_per_recv);
         }
         else {
             #ifdef __STCP_SSL__
-            bytes = stcp_ssl_recv_data(socket_f, response_tmp, stcp_setup_data.stcp_size_per_recv);
+            bytes = stcp_ssl_recv_data(socket_f, stcp_trx_buffer, stcp_setup_data.stcp_size_per_recv);
             #endif
         }
         if (bytes == -1){
@@ -3298,7 +3226,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         if (_request_type != STCP_REQ_DOWNLOAD_CONTENT || get_process == STCP_PROCESS_GET_HEADER){
             total_bytes_tmp = total_bytes_tmp + bytes;
             response = (unsigned char *) realloc(response, (total_bytes + bytes + 1) * sizeof(unsigned char));
-            memcpy(response + total_bytes, response_tmp, bytes);
+            memcpy(response + total_bytes, stcp_trx_buffer, bytes);
             response[total_bytes_tmp] = 0x00;
             if (get_process == STCP_PROCESS_GET_HEADER){
                 if ((total_bytes > 4 && bytes > 0) || bytes > 4){
@@ -3355,9 +3283,9 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
                                         stcp_debug(__func__, "ERROR", "failed to open config file\n");
                                     }
                                     else {
-                                        memset(response_tmp, 0x00, (stcp_setup_data.stcp_size_per_recv + 1)*sizeof(char));
-                                        memcpy(response_tmp, response + total_bytes, bytes);
-                                        fprintf(download_file, "%s", response_tmp);
+                                        memset(stcp_trx_buffer, 0x00, (stcp_setup_data.stcp_size_per_recv + 1)*sizeof(char));
+                                        memcpy(stcp_trx_buffer, response + total_bytes, bytes);
+                                        fprintf(download_file, "%s", stcp_trx_buffer);
                                     }
                                     response[total_bytes] = 0x00;
                                     response = (unsigned char *) realloc(response, (total_bytes + 1)*sizeof(unsigned char));
@@ -3410,7 +3338,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
                 stcp_debug(__func__, "ERROR", "failed to open config file\n");
             }
             else {
-                fprintf(download_file, "%s", response_tmp);
+                fprintf(download_file, "%s", stcp_trx_buffer);
             }
         }
 
@@ -3425,7 +3353,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
     } while (bytes >= 0);
 
     request_finished:
-        if (strcmp(protocol, "http") == 0){
+        if (protocol == 0){
             stcp_close(&socket_f);
         }
         else {
@@ -3433,8 +3361,6 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
             stcp_ssl_close(&socket_f);
             #endif
         }
-        free(protocol);
-        protocol = NULL;
         if (_request_type == STCP_REQ_DOWNLOAD_CONTENT){
             memset(stcp_file_name, 0x00, sizeof(stcp_file_name));
             if (download_file != NULL){
@@ -3452,8 +3378,8 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
                 stcp_debug(__func__, "DOWNLOAD", "downloaded finished: %i/unknown bytes\n", __func__, download_counter);
             }
         }
-        free(response_tmp);
-        response_tmp = NULL;
+        free(stcp_trx_buffer);
+        stcp_trx_buffer = NULL;
         if (strlen((char *) response) == 0){
             if (stcp_setup_data.stcp_timeout_sec == 0){
                 response = (unsigned char *) realloc(response, 30*sizeof(unsigned char));
@@ -3569,22 +3495,22 @@ static unsigned char *stcp_select_content(unsigned char *response, uint32_t _con
         response = NULL;
         return NULL;
     }
-    unsigned char *response_tmp;
-    response_tmp = (unsigned char *) malloc((_content_length + 1) *sizeof(unsigned char));
-    if (response_tmp == NULL){
+    unsigned char *stcp_trx_buffer;
+    stcp_trx_buffer = (unsigned char *) malloc((_content_length + 1) *sizeof(unsigned char));
+    if (stcp_trx_buffer == NULL){
         stcp_debug(__func__, "ERROR", "failed to allocate temporary memory\n");
         free(response);
         response = NULL;
         return NULL;
     }
-    memset(response_tmp, 0x00, (_content_length + 1)*sizeof(char));
+    memset(stcp_trx_buffer, 0x00, (_content_length + 1)*sizeof(char));
     uint32_t i = 0;
     for (i=0; i<_content_length; i++){
-        response_tmp[i] = response[i + (strlen((char *) response) - _content_length)];
+        stcp_trx_buffer[i] = response[i + (strlen((char *) response) - _content_length)];
     }
     free(response);
     response = NULL;
-    return response_tmp;
+    return stcp_trx_buffer;
 
 }
 

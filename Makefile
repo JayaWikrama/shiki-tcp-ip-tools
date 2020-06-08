@@ -17,10 +17,15 @@
 
 CC = gcc
 CFLAGS = -Wall
-INCLUDE = -lssl
+INCLUDE = -lssl -lcrypto
 BUILD_DIRECTORY = build
 OBJ_DIRECTORY = obj
-SOURCE = tcp_test.c shiki-tcp-ip-tools.c
+SOURCE = tcp_test.c \
+ shiki-tcp-ip-tools.c \
+ shiki-tcp-ip-userdef.c \
+ ../shiki-time-tools/shiki-time-tools.c \
+ ../shiki-linked-list/shiki-linked-list.c \
+ ../shiki-json-tools/shiki-json-tools.c
 OBJECTS = $(patsubst %.c,$(OBJ_DIRECTORY)/%.o,$(SOURCE))
 TARGET = stcp
 TIME_CREATED = `date +%y.%m.%d_%H.%M.%S`

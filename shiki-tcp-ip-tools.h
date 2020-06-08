@@ -41,6 +41,11 @@ struct stcp_sock_data{
 
 typedef struct stcp_sock_data stcpSock;
 
+typedef struct stcp_subhead_var{
+  uint16_t stcp_sub_pos;
+  uint16_t stcp_sub_size;
+} stcpSHead;
+
 #ifdef __STCP_PING__
   struct stcp_ping_summary{
     int8_t state;
@@ -67,11 +72,6 @@ typedef struct stcp_sock_data stcpSock;
     STCP_SSL_WEBSERVER_VERIFY_REMOTE_CLIENT = 0x01
   } stcp_ssl_webserver_verify_mode;
   #endif
-
-  typedef struct stcp_subhead_var{
-    uint16_t stcp_sub_pos;
-    uint16_t stcp_sub_size;
-  } stcpSHead;
 
   struct stcp_webserver_info{
     char *server_header;
@@ -195,7 +195,7 @@ int32_t stcp_recv_data(stcpSock _init_data, unsigned char* buff, int32_t size_se
   int32_t stcp_ssl_recv_data(stcpSock _init_data, unsigned char* buff, int32_t size_set);
 #endif
 
-int8_t stcp_url_parser(char *_url, char *_host, char *_protocol, char *_end_point, uint16_t *_port);
+int8_t stcp_url_parser(char *_url, int8_t *_protocol, stcpSHead *_host, stcpSHead *_end_point, uint16_t *_port);
 char *stcp_http_content_generator(uint16_t _sizeof_content, char *_content_format, ...);
 unsigned char *stcp_http_generate_multipart_header(char *_stcp_multipart_header_input, char *_boundary_output, uint16_t *_length_part);
 unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_content, stcp_request_type _request_type);
