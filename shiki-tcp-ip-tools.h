@@ -8,6 +8,14 @@
 #include <stdint.h>
 #ifdef __STCP_SSL__
   #include <openssl/ssl.h>
+  typedef enum {
+    STCP_SSL_CERT_TYPE_FILE = 0x00,
+    STCP_SSL_CERT_TYPE_TEXT = 0x01,
+    STCP_SSL_KEY_TYPE_FILE = 0x02,
+    STCP_SSL_KEY_TYPE_TEXT = 0x03,
+    STCP_SSL_CACERT_TYPE_FILE = 0x04,
+    STCP_SSL_CACERT_TYPE_TEXT = 0x05,
+  } stcp_ssl_certkey_type;
 #endif
 
 #ifdef __STCP_WEBSERVER__
@@ -52,6 +60,13 @@ typedef struct stcp_sock_data stcpSock;
     STCP_404_NOT_FOUND = 0x02,
     STCP_405_METHOD_NOT_ALLOWED = 0x03
   } stcp_webserver_negative_code;
+
+  #ifdef __STCP_SSL__
+  typedef enum{
+    STCP_SSL_WEBSERVER_WITHOUT_VERIFY_CLIENT = 0x00,
+    STCP_SSL_WEBSERVER_VERIFY_REMOTE_CLIENT = 0x01
+  } stcp_ssl_webserver_verify_mode;
+  #endif
 
   typedef struct stcp_subhead_var{
     uint16_t stcp_sub_pos;
@@ -102,6 +117,12 @@ typedef enum{
   STCP_SET_KEEP_ALIVE_TIMEOUT_IN_SEC = 5,
   STCP_SET_KEEP_ALIVE_TIMEOUT_IN_MILLISEC = 6,
   STCP_SET_INFINITE_MODE_RETRY = 7
+  #ifdef __STCP_WEBSERVER__
+  #ifdef __STCP_SSL__
+  ,
+  STCP_SET_WEBSERVER_VERIFY_CERT_MODE = 99
+  #endif
+  #endif
 } stcp_setup_parameter;
 
 void stcp_debug(const char *function_name, char *debug_type, char *debug_msg, ...);
@@ -109,6 +130,15 @@ void stcp_debug(const char *function_name, char *debug_type, char *debug_msg, ..
 void stcp_view_version();
 long stcp_get_version(char *_version);
 int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value);
+
+#ifdef __STCP_SSL__
+int8_t stcp_ssl_add_certkey(stcp_ssl_certkey_type _type, char *_host, char *_certkey);
+int8_t stcp_ssl_remove_certkey(stcp_ssl_certkey_type _type, char *_host, char *_certkey);
+unsigned char *stcp_ssl_get_cert(char *_host, stcp_ssl_certkey_type *_type);
+unsigned char *stcp_ssl_get_key(char *_host, stcp_ssl_certkey_type *_type);
+unsigned char *stcp_ssl_get_cacert(char *_host, stcp_ssl_certkey_type *_type);
+void stcp_ssl_clean_certkey_collection();
+#endif
 
 /*
   stcp_client_init

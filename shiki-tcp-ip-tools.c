@@ -73,6 +73,11 @@ struct stcp_setup_var{
     uint16_t stcp_keepalive_millisec;
     uint32_t stcp_size_per_recv;
     uint32_t stcp_size_per_send;
+    #ifdef __STCP_WEBSERVER__
+    #ifdef __STCP_SSL__
+    stcp_ssl_webserver_verify_mode stcp_sslw_verify_mode;
+    #endif
+    #endif
 };
 
 struct stcp_setup_var stcp_setup_data = {
@@ -85,7 +90,17 @@ struct stcp_setup_var stcp_setup_data = {
     0,
     128,
     128
+    #ifdef __STCP_WEBSERVER__
+    #ifdef __STCP_SSL__
+    ,
+    STCP_SSL_WEBSERVER_WITHOUT_VERIFY_CLIENT
+    #endif
+    #endif
 };
+
+#ifdef __STCP_SSL__
+    SHLink stcp_certkey_collection = NULL;
+#endif
 
 #ifdef __STCP_WEBSERVER__
 int8_t stcp_webserver_init_state = 0;
@@ -199,51 +214,6 @@ static int8_t stcp_connect_with_timeout (int stcp_socket_f, struct sockaddr * ad
 		}
 	}
 	return 0;
-}
-
-static int8_t stcp_accept_with_timeout (int stcp_socket_f, struct sockaddr_in *addr, socklen_t *addrlen, struct timeval * stcp_timeout) {
-	int8_t retval, fcntl_flags;
-    int connf = 0;
-	if ((fcntl_flags = fcntl (stcp_socket_f, F_GETFL, NULL)) < 0) {
-		return -1;
-	}
-	if (fcntl (stcp_socket_f, F_SETFL, fcntl_flags | O_NONBLOCK) < 0) {
-		return -1;
-	}
-	if ((connf = accept(stcp_socket_f, (SA*)addr, addrlen)) < 0) {
-		if (errno == EINPROGRESS) {
-			fd_set wait_set;
-			FD_ZERO (&wait_set);
-			FD_SET (stcp_socket_f, &wait_set);
-			retval = select (stcp_socket_f + 1, NULL, &wait_set, NULL, stcp_timeout);
-		}
-	}
-	else {
-		retval = 1;
-	}
-
-	if (fcntl (stcp_socket_f, F_SETFL, fcntl_flags) < 0) {
-		return -1;
-	}
-
-	if (retval < 0) {
-		return -1;
-	}
-	else if (retval == 0) {
-		errno = ETIMEDOUT;
-		return 1;
-	}
-	else {
-		socklen_t len = sizeof (fcntl_flags);
-		if (getsockopt (stcp_socket_f, SOL_SOCKET, SO_ERROR, &fcntl_flags, &len) < 0) {
-			return -1;
-		}
-		if (fcntl_flags) {
-			errno = fcntl_flags;
-			return -1;
-		}
-	}
-	return connf;
 }
 
 static int8_t stcp_check_ip(char *_ip_address){
@@ -369,12 +339,249 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
             return -1;
         }
     }
+    #ifdef __STCP_WEBSERVER__
+    #ifdef __STCP_SSL__
+    else if (_setup_parameter == STCP_SET_WEBSERVER_VERIFY_CERT_MODE){
+        if ((int8_t)_value == STCP_SSL_WEBSERVER_WITHOUT_VERIFY_CLIENT ||
+         (int8_t)_value == STCP_SSL_WEBSERVER_VERIFY_REMOTE_CLIENT){
+            stcp_setup_data.stcp_sslw_verify_mode = (int8_t)_value;
+        }
+        else {
+            stcp_debug(__func__, "WARNING", "wrong value\n");
+            return -1;
+        }
+    }
+    #endif
+    #endif
     else {
         stcp_debug(__func__, "WARNING", "wrong parameters\n");
         return -1;
     }
     return 0;
 }
+
+#ifdef __STCP_SSL__
+int8_t stcp_ssl_add_certkey(stcp_ssl_certkey_type _type, char *_host, char *_certkey){
+    if (_type < STCP_SSL_CERT_TYPE_FILE || _type > STCP_SSL_CACERT_TYPE_TEXT){
+        stcp_debug(__func__, "WARNING", "wrong parameters\n");
+        return -1;
+    }
+    char buffkey[15 + strlen(_host)];
+    memset(buffkey, 0x00, sizeof(buffkey));
+    if (strstr(_host, "https://") != NULL){
+        _host += 8;
+    }
+    else if (strstr(_host, "http://") != NULL){
+        _host += 7;
+    }
+    if (_type == STCP_SSL_CERT_TYPE_FILE){
+        sprintf(buffkey, "stcpsslcrtfile%s", _host);
+    }
+    else if (_type == STCP_SSL_CERT_TYPE_TEXT){
+        sprintf(buffkey, "stcpsslcrttext%s", _host);
+    }
+    else if (_type == STCP_SSL_KEY_TYPE_FILE){
+        sprintf(buffkey, "stcpsslkeyfile%s", _host);
+    }
+    else if (_type == STCP_SSL_KEY_TYPE_TEXT){
+        sprintf(buffkey, "stcpsslkeytext%s", _host);
+    }
+    else if (_type == STCP_SSL_CACERT_TYPE_FILE){
+        sprintf(buffkey, "stcpsslcacfile%s", _host);
+    }
+    else if (_type == STCP_SSL_CACERT_TYPE_TEXT){
+        sprintf(buffkey, "stcpsslcactext%s", _host);
+    }
+    if (shilink_count_data_by_key(stcp_certkey_collection, (void *)buffkey, strlen(buffkey)) > 0){
+        stcp_debug(__func__, "INFO", "certkey for %s have been added. process aborted\n", _host);
+        return 1;
+    }
+    SHLinkCustomData certkey_additional_data;
+    if (shilink_fill_custom_data(
+     &certkey_additional_data,
+     (void *) buffkey,
+     (uint16_t) strlen(buffkey),
+     (void *) _certkey,
+     strlen(_certkey),
+     SL_TEXT
+    ) != 0){
+        stcp_debug(__func__, "ERROR", "failed to fill data\n");
+        return -2;
+    }
+    if (shilink_append(&stcp_certkey_collection, certkey_additional_data) != 0){
+        stcp_debug(__func__, "ERROR", "failed to insert data\n");
+        return -3;
+    }
+    return 0;
+}
+
+int8_t stcp_ssl_remove_certkey(stcp_ssl_certkey_type _type, char *_host, char *_certkey){
+    if (_type < STCP_SSL_CERT_TYPE_FILE || _type > STCP_SSL_CACERT_TYPE_TEXT){
+        stcp_debug(__func__, "WARNING", "wrong parameters\n");
+        return -1;
+    }
+    char buffkey[15 + strlen(_host)];
+    memset(buffkey, 0x00, sizeof(buffkey));
+    if (strstr(_host, "https://") != NULL){
+        _host += 8;
+    }
+    else if (strstr(_host, "http://") != NULL){
+        _host += 7;
+    }
+    if (_type == STCP_SSL_CERT_TYPE_FILE){
+        sprintf(buffkey, "stcpsslcrtfile%s", _host);
+    }
+    else if (_type == STCP_SSL_CERT_TYPE_TEXT){
+        sprintf(buffkey, "stcpsslcrttext%s", _host);
+    }
+    else if (_type == STCP_SSL_KEY_TYPE_FILE){
+        sprintf(buffkey, "stcpsslkeyfile%s", _host);
+    }
+    else if (_type == STCP_SSL_KEY_TYPE_TEXT){
+        sprintf(buffkey, "stcpsslkeytext%s", _host);
+    }
+    else if (_type == STCP_SSL_CACERT_TYPE_FILE){
+        sprintf(buffkey, "stcpsslcacfile%s", _host);
+    }
+    else if (_type == STCP_SSL_CACERT_TYPE_TEXT){
+        sprintf(buffkey, "stcpsslcactext%s", _host);
+    }
+    if (shilink_count_data_by_key(stcp_certkey_collection, (void *)buffkey, strlen(buffkey)) > 0){
+        stcp_debug(__func__, "INFO", "certkey for %s not exist\n", _host);
+        return 1;
+    }
+    SHLinkCustomData certkey_additional_data;
+    if (shilink_fill_custom_data(
+     &certkey_additional_data,
+     (void *) buffkey,
+     (uint16_t) strlen(buffkey),
+     (void *) _certkey,
+     strlen(_certkey),
+     SL_TEXT
+    ) != 0){
+        stcp_debug(__func__, "ERROR", "failed to fill data\n");
+        return -2;
+    }
+    if (shilink_delete(&stcp_certkey_collection, certkey_additional_data) != 0){
+        stcp_debug(__func__, "ERROR", "failed to insert data\n");
+        return -3;
+    }
+    return 0;
+}
+
+unsigned char *stcp_ssl_get_cert(char *_host, stcp_ssl_certkey_type *_type){
+    SHLinkCustomData sslcertres;
+    char buff[15 + strlen(_host)];
+    memset(buff, 0x00, sizeof(buff));
+    if (strstr(_host, "https://") != NULL){
+        _host += 8;
+    }
+    else if (strstr(_host, "http://") != NULL){
+        _host += 7;
+    }
+    sprintf(buff, "stcpsslcrtfile%s", _host);
+    if (shilink_search_data_by_position(
+     stcp_certkey_collection,
+     (void *) buff,
+     (uint16_t) strlen(buff),
+     0,
+     &sslcertres
+    ) == 0){
+        *_type = STCP_SSL_CERT_TYPE_FILE;
+        return (unsigned char *) sslcertres.sl_value;
+    }
+    memset(buff, 0x00, sizeof(buff));
+    sprintf(buff, "stcpsslcrttext%s", _host);
+    if (shilink_search_data_by_position(
+     stcp_certkey_collection,
+     (void *) buff,
+     (uint16_t) strlen(buff),
+     0,
+     &sslcertres
+    ) == 0){
+        *_type = STCP_SSL_CERT_TYPE_TEXT;
+        return (unsigned char *) sslcertres.sl_value;
+    }
+    return NULL;
+}
+
+unsigned char *stcp_ssl_get_key(char *_host, stcp_ssl_certkey_type *_type){
+    SHLinkCustomData sslcertres;
+    char buff[15 + strlen(_host)];
+    memset(buff, 0x00, sizeof(buff));
+    if (strstr(_host, "https://") != NULL){
+        _host += 8;
+    }
+    else if (strstr(_host, "http://") != NULL){
+        _host += 7;
+    }
+    sprintf(buff, "stcpsslkeyfile%s", _host);
+    if (shilink_search_data_by_position(
+     stcp_certkey_collection,
+     (void *) buff,
+     (uint16_t) strlen(buff),
+     0,
+     &sslcertres
+    ) == 0){
+        *_type = STCP_SSL_KEY_TYPE_FILE;
+        return (unsigned char *) sslcertres.sl_value;
+    }
+    memset(buff, 0x00, sizeof(buff));
+    sprintf(buff, "stcpsslkeytext%s", _host);
+    if (shilink_search_data_by_position(
+     stcp_certkey_collection,
+     (void *) buff,
+     (uint16_t) strlen(buff),
+     0,
+     &sslcertres
+    ) == 0){
+        *_type = STCP_SSL_KEY_TYPE_TEXT;
+        return (unsigned char *) sslcertres.sl_value;
+    }
+    return NULL;
+}
+
+unsigned char *stcp_ssl_get_cacert(char *_host, stcp_ssl_certkey_type *_type){
+    SHLinkCustomData sslcertres;
+    char buff[15 + strlen(_host)];
+    memset(buff, 0x00, sizeof(buff));
+    if (strstr(_host, "https://") != NULL){
+        _host += 8;
+    }
+    else if (strstr(_host, "http://") != NULL){
+        _host += 7;
+    }
+    sprintf(buff, "stcpsslcacfile%s", _host);
+    if (shilink_search_data_by_position(
+     stcp_certkey_collection,
+     (void *) buff,
+     (uint16_t) strlen(buff),
+     0,
+     &sslcertres
+    ) == 0){
+        *_type = STCP_SSL_CACERT_TYPE_FILE;
+        return (unsigned char *) sslcertres.sl_value;
+    }
+    memset(buff, 0x00, sizeof(buff));
+    sprintf(buff, "stcpsslcactext%s", _host);
+    if (shilink_search_data_by_position(
+     stcp_certkey_collection,
+     (void *) buff,
+     (uint16_t) strlen(buff),
+     0,
+     &sslcertres
+    ) == 0){
+        *_type = STCP_SSL_CACERT_TYPE_TEXT;
+        return (unsigned char *) sslcertres.sl_value;
+    }
+    return NULL;
+}
+
+void stcp_ssl_clean_certkey_collection(){
+    shilink_free(&stcp_certkey_collection);
+    stcp_certkey_collection = NULL;
+}
+#endif
 
 int8_t stcp_set_download_file_name(char* _file_name){
     if (strlen(_file_name) > STCP_MAX_LENGTH_FILE_NAME){
@@ -573,49 +780,6 @@ static void stcp_http_webserver_free(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stc
     *_stcpWList = NULL;
 }
 
-static int8_t stcp_http_webserver_header_get(unsigned char *_source_text, unsigned char *_specific_word, unsigned char **_return, unsigned char _end_code){
-    uint16_t len_buff = strlen((char *) _source_text);
-    unsigned char buff_tmp[strlen((char *) _specific_word) + 3];
-    uint16_t idx_char = 0;
-    uint16_t buffer_size = 8;
-    uint16_t content_size = 2;
-    uint16_t idx_add = 0;
-	while (idx_char<=len_buff){
-        memset(buff_tmp, 0x00, sizeof(buff_tmp));
-        idx_add = 0;
-        while(_source_text[idx_char] != ' ' &&
-         _source_text[idx_char] != '\n' &&
-         _source_text[idx_char] != 0x00 &&
-         strlen((char *) buff_tmp) < (sizeof(buff_tmp)-1)
-        ){
-            buff_tmp[idx_add]=_source_text[idx_char];
-            idx_char++;
-            idx_add++;
-        }
-        idx_char++;
-        if(memcmp(buff_tmp, _specific_word, strlen((char *) _specific_word)) == 0 && len_buff-idx_char > 2){
-			uint16_t i = 0;
-            for (i=idx_char; i<len_buff; i++){
-                if(_source_text[i] != _end_code){
-                    if (buffer_size < content_size + 1){
-                        buffer_size = buffer_size + 8;
-                        *_return = (unsigned char *) realloc(*_return, buffer_size * sizeof(char));
-                    }
-                    (*_return)[i-idx_char] = _source_text[i];
-                    (*_return)[(i-idx_char) + 1] = 0x00;
-                    content_size++;
-                }
-                else {
-                    break;
-                }
-            }
-            return 0;
-            break;
-        }
-    }
-    return -1;
-}
-
 static void stcp_http_webserver_header_segment(unsigned char *_source_text, unsigned char *_specific_word, uint16_t *_pos, uint16_t *_size, unsigned char _end_code){
     uint16_t len_buff = strlen((char *) _source_text);
     unsigned char buff_tmp[strlen((char *) _specific_word) + 3];
@@ -683,8 +847,6 @@ static inline void stcp_http_webserver_print_segment(unsigned char *_header, stc
 
 void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
     uint16_t idx_char = 0;
-    uint16_t buffer_size = 8;
-    uint16_t idx_content = 0;
 
     stcp_debug(__func__, "WEBSERVER INFO", "HEADER\n");
     printf("%s\n", _stcpWI->rcv_header);
@@ -921,7 +1083,14 @@ int8_t stcp_http_webserver_add_negative_code_response(stcpWList *_stcpWList, stc
         stcp_debug(__func__, "ERROR", "invalid parameters\n");
         return -1;
     }
-    if(shilink_fill_custom_data(&_data, data_key, _response_content, SL_TEXT) != 0){
+    if(shilink_fill_custom_data(
+     &_data,
+     (void *) data_key,
+     (uint16_t) strlen(data_key),
+     (void *) _response_content,
+     (uint16_t) strlen(_response_content),
+     SL_TEXT
+    ) != 0){
         stcp_debug(__func__, "ERROR", "failed to add response (1)\n");
         return -2;
     }
@@ -938,7 +1107,14 @@ int8_t stcp_http_webserver_add_response(stcpWList *_stcpWList, char *_end_point,
     char data_key[strlen(_end_point) + strlen(_request_method) + 1];
     memset(data_key, 0x00, sizeof(data_key));
     sprintf(data_key, "%s%s", _request_method, _end_point);
-    if(shilink_fill_custom_data(&_data, data_key, _response_content, SL_TEXT) != 0){
+    if(shilink_fill_custom_data(
+     &_data,
+     (void *) data_key,
+     (uint16_t) strlen(data_key),
+     (void *) _response_content,
+     (uint16_t) strlen(_response_content),
+     SL_TEXT
+    ) != 0){
         stcp_debug(__func__, "ERROR", "failed to add response (1)\n");
         return -1;
     }
@@ -958,7 +1134,14 @@ int8_t stcp_http_webserver_add_response_file(stcpWList *_stcpWList, char *_end_p
     memset(data_value, 0x00, sizeof(data_value));
     sprintf(data_key, "%s%s", _request_method, _end_point);
     sprintf(data_value, "open_file:%s", _response_file);
-    if(shilink_fill_custom_data(&_data, data_key, data_value, SL_TEXT) != 0){
+    if(shilink_fill_custom_data(
+     &_data,
+     (void *) data_key,
+     (uint16_t) strlen(data_key),
+     (void *) data_value,
+     (uint16_t) strlen(data_value),
+     SL_TEXT
+    ) != 0){
         stcp_debug(__func__, "ERROR", "failed to add response (1)\n");
         return -1;
     }
@@ -978,7 +1161,14 @@ int8_t stcp_http_webserver_add_response_function(stcpWList *_stcpWList, char *_e
     memset(data_value, 0x00, sizeof(data_value));
     sprintf(data_key, "%s%s", _request_method, _end_point);
     sprintf(data_value, "call_func:%s", _response_function);
-    if(shilink_fill_custom_data(&_data, data_key, data_value, SL_TEXT) != 0){
+    if(shilink_fill_custom_data(
+     &_data,
+     (void *) data_key,
+     (uint16_t) strlen(data_key),
+     (void *) data_value,
+     (uint16_t) strlen(data_value),
+     SL_TEXT
+    ) != 0){
         stcp_debug(__func__, "ERROR", "failed to add response (1)\n");
         return -1;
     }
@@ -1003,7 +1193,13 @@ char *stcp_http_webserver_select_response(stcpWInfo *_stcpWI, stcpWList _stcpWLi
      _stcpWI->rcv_header + _stcpWI->rcv_endpoint.stcp_sub_pos,
      _stcpWI->rcv_endpoint.stcp_sub_size);
     
-    if (shilink_search_data_by_position(_stcpWList, data_key, 0, &_data) != 0){
+    if (shilink_search_data_by_position(
+     _stcpWList,
+     (void *) data_key,
+     (uint16_t) strlen(data_key),
+     0,
+     &_data
+    ) != 0){
         if (memcmp("GET",
          _stcpWI->rcv_header + _stcpWI->request.stcp_sub_pos,
          _stcpWI->request.stcp_sub_size
@@ -1013,7 +1209,13 @@ char *stcp_http_webserver_select_response(stcpWInfo *_stcpWI, stcpWList _stcpWLi
             memcpy(data_key + 3,
              _stcpWI->rcv_header + _stcpWI->rcv_endpoint.stcp_sub_pos,
              _stcpWI->rcv_endpoint.stcp_sub_size);
-            if (shilink_search_data_by_position(_stcpWList, data_key, 0, &_data) == 0){
+            if (shilink_search_data_by_position(
+             _stcpWList,
+             (void *) data_key,
+             (uint16_t) strlen(data_key),
+             0,
+             &_data
+            ) == 0){
                 goto next405;
             }
         }
@@ -1026,7 +1228,13 @@ char *stcp_http_webserver_select_response(stcpWInfo *_stcpWI, stcpWList _stcpWLi
             memcpy(data_key + 4,
              _stcpWI->rcv_header + _stcpWI->rcv_endpoint.stcp_sub_pos,
              _stcpWI->rcv_endpoint.stcp_sub_size);
-            if (shilink_search_data_by_position(_stcpWList, data_key, 0, &_data) == 0){
+            if (shilink_search_data_by_position(
+             _stcpWList,
+             (void *) data_key,
+             (uint16_t) strlen(data_key),
+             0,
+             &_data
+            ) == 0){
                 goto next405;
             }
         }
@@ -1039,7 +1247,13 @@ char *stcp_http_webserver_select_response(stcpWInfo *_stcpWI, stcpWList _stcpWLi
             memcpy(data_key + 3,
              _stcpWI->rcv_header + _stcpWI->rcv_endpoint.stcp_sub_pos,
              _stcpWI->rcv_endpoint.stcp_sub_size);
-            if (shilink_search_data_by_position(_stcpWList, data_key, 0, &_data) == 0){
+            if (shilink_search_data_by_position(
+             _stcpWList,
+             (void *) data_key,
+             (uint16_t) strlen(data_key),
+             0,
+             &_data
+            ) == 0){
                 goto next405;
             }
         }
@@ -1052,7 +1266,13 @@ char *stcp_http_webserver_select_response(stcpWInfo *_stcpWI, stcpWList _stcpWLi
             memcpy(data_key + 4,
              _stcpWI->rcv_header + _stcpWI->rcv_endpoint.stcp_sub_pos,
              _stcpWI->rcv_endpoint.stcp_sub_size);
-            if (shilink_search_data_by_position(_stcpWList, data_key, 0, &_data) == 0){
+            if (shilink_search_data_by_position(
+             _stcpWList,
+             (void *) data_key,
+             (uint16_t) strlen(data_key),
+             0,
+             &_data
+            ) == 0){
                 goto next405;
             }
         }
@@ -1065,7 +1285,13 @@ char *stcp_http_webserver_select_response(stcpWInfo *_stcpWI, stcpWList _stcpWLi
             memcpy(data_key + 6,
              _stcpWI->rcv_header + _stcpWI->rcv_endpoint.stcp_sub_pos,
              _stcpWI->rcv_endpoint.stcp_sub_size);
-            if (shilink_search_data_by_position(_stcpWList, data_key, 0, &_data) == 0){
+            if (shilink_search_data_by_position(
+             _stcpWList,
+             (void *) data_key,
+             (uint16_t) strlen(data_key),
+             0,
+             &_data
+            ) == 0){
                 goto next405;
             }
         }
@@ -1078,7 +1304,13 @@ char *stcp_http_webserver_select_response(stcpWInfo *_stcpWI, stcpWList _stcpWLi
             memcpy(data_key + 5,
              _stcpWI->rcv_header + _stcpWI->rcv_endpoint.stcp_sub_pos,
              _stcpWI->rcv_endpoint.stcp_sub_size);
-            if (shilink_search_data_by_position(_stcpWList, data_key, 0, &_data) == 0){
+            if (shilink_search_data_by_position(
+             _stcpWList,
+             (void *) data_key,
+             (uint16_t) strlen(data_key),
+             0,
+             &_data
+            ) == 0){
                 goto next405;
             }
         }
@@ -1091,26 +1323,32 @@ char *stcp_http_webserver_select_response(stcpWInfo *_stcpWI, stcpWList _stcpWLi
             memcpy(data_key + 7,
              _stcpWI->rcv_header + _stcpWI->rcv_endpoint.stcp_sub_pos,
              _stcpWI->rcv_endpoint.stcp_sub_size);
-            if (shilink_search_data_by_position(_stcpWList, data_key, 0, &_data) == 0){
+            if (shilink_search_data_by_position(
+             _stcpWList,
+             (void *) data_key,
+             (uint16_t) strlen(data_key),
+             0,
+             &_data
+            ) == 0){
                 goto next405;
             }
         }
         strcpy(_respons_code, "404 Not Found");
-        if (shilink_search_data_by_position(_stcpWList, "404", 0, &_data) != 0){
+        if (shilink_search_data_by_position(_stcpWList, "404", 3, 0, &_data) != 0){
             return NULL;
         }
         return _data.sl_value;
         
         next405 :
             strcpy(_respons_code, "405 Method Not Allowed");
-            if (shilink_search_data_by_position(_stcpWList, "405", 0, &_data) != 0){
+            if (shilink_search_data_by_position(_stcpWList, "405", 3, 0, &_data) != 0){
                 return NULL;
             }
             return _data.sl_value;
     }
     strcpy(_respons_code, "200 OK");
-    printf("selected response: %s\n", _data.sl_value);
-    return _data.sl_value;
+    printf("selected response: %s\n", (char *) _data.sl_value);
+    return (char *) _data.sl_value;
 }
 
 int8_t stcp_http_webserver_set_content_type(stcpWHead *_stcpWH, char *_content_type){
@@ -1260,10 +1498,10 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
                             break;
                         }
                     #else
-                        break
+                        break;
                     #endif
                 }
-                memset(file_content, 0x00, (stcp_setup_data.stcp_size_per_recv * sizeof(char)));
+                memset(file_content, 0x00, (stcp_setup_data.stcp_size_per_send * sizeof(char)));
                 if (size_recv == 0){
                     break;
                 }
@@ -1404,12 +1642,92 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
         stcp_debug(__func__, "WEBSERVER INFO", "Server listening..\n"); 
     }
     else {
+        #ifdef __STCP_SSL__
+            ssl_ctx = NULL;
+            #ifdef SSLv23_server_method
+                ssl_ctx = SSL_CTX_new (SSLv23_server_method ());
+            #else
+                ssl_ctx = SSL_CTX_new (TLSv1_2_server_method ());
+            #endif
+
+            if (ssl_ctx == NULL){
+                stcp_debug(__func__, "WARNING", "unable to create new SSL context structure\n");
+            }
+
+            unsigned char* sslCertKey = NULL;
+            stcp_ssl_certkey_type certkeyType = 0;
+            sslCertKey = stcp_ssl_get_cert(ADDRESS, &certkeyType);
+            if (sslCertKey != NULL){
+                if (certkeyType == STCP_SSL_CERT_TYPE_FILE){
+                    if (SSL_CTX_use_certificate_file(ssl_ctx, (const char *) sslCertKey, SSL_FILETYPE_PEM) <= 0)
+                    {
+                        stcp_debug(__func__, "WARNING", "failed to open certificate file\n");
+                    }
+                }
+                else {
+                    if (SSL_CTX_use_certificate_ASN1(ssl_ctx, strlen((const char *) sslCertKey), sslCertKey) <= 0)
+                    {
+                        stcp_debug(__func__, "WARNING", "failed to add certificate\n");
+                    }
+                }
+            }
+            sslCertKey = NULL;
+            sslCertKey = stcp_ssl_get_key(ADDRESS, &certkeyType);
+            if (sslCertKey != NULL){
+                if (certkeyType == STCP_SSL_KEY_TYPE_FILE){
+                    if (SSL_CTX_use_PrivateKey_file(ssl_ctx, (const char *) sslCertKey, SSL_FILETYPE_PEM) <= 0)
+                    {
+                        stcp_debug(__func__, "WARNING", "failed to open private key file\n");
+                    }
+                }
+                else {
+                    if (SSL_CTX_use_PrivateKey_ASN1(0, ssl_ctx, sslCertKey, strlen((const char *) sslCertKey)) <= 0)
+                    {
+                        stcp_debug(__func__, "WARNING", "failed to add privat key\n");
+                    }
+                }
+                if (!SSL_CTX_check_private_key(ssl_ctx))
+                {
+                    stcp_debug(__func__, "WARNING", "Private key does not match the public certificate\n");
+                }
+            }
+            if(stcp_setup_data.stcp_sslw_verify_mode == STCP_SSL_WEBSERVER_VERIFY_REMOTE_CLIENT){
+                sslCertKey = NULL;
+                sslCertKey = stcp_ssl_get_cacert(ADDRESS, &certkeyType);
+                if (sslCertKey != NULL){
+                    if (certkeyType == STCP_SSL_CACERT_TYPE_FILE){
+                        SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER|SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
+                        if (SSL_CTX_load_verify_locations(ssl_ctx, (const char *) sslCertKey, NULL) < 1)
+                        {
+                            stcp_debug(__func__, "WARNING", "failed to set verify location\n");
+                        }
+                    }
+                    else {
+                        SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER|SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
+                        if (SSL_CTX_load_verify_locations(ssl_ctx, (const char *) sslCertKey, NULL) < 1)
+                        {
+                            stcp_debug(__func__, "WARNING", "failed to set verify location\n");
+                        }
+                    }
+                }
+                else {
+                    stcp_debug(__func__, "WARNING", "CA cert not set\n");
+                }
+            }
+            else {
+                SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
+            }
+        #endif
         stcp_debug(__func__, "WEBSERVER INFO", "Server https listening..\n");
     }
+
     len = sizeof(cli);
 
     int client_fd[MAX_CLIENT];
     uint16_t keep_alive_cnt[MAX_CLIENT];
+    #ifdef __STCP_SSL__
+        SSL *ssl_client_fd[MAX_CLIENT];
+    #endif
     struct timeval tv_timer;
 
     memset(client_fd, 0x00, sizeof(client_fd));
@@ -1425,6 +1743,13 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
     int8_t retval;
     int8_t proc_state = STCP_PROCESS_GET_HEADER;
     stcp_server_state = STCP_SERVER_RUNING;
+
+    #ifdef __STCP_SSL__
+        for (idx_client = 0; idx_client < MAX_CLIENT; idx_client++){
+            ssl_client_fd[idx_client] = NULL;
+        }
+        idx_client = 0;
+    #endif
 
     char response_code[32];
 
@@ -1471,6 +1796,45 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                         stcp_debug(__func__, "WEBSERVER INFO", "new connection (%d:%d) %s:%d\n" ,
                          init_data.connection_f, idx_client, _stcpWI->ipaddr, ntohs(cli.sin_port)
                         );
+                        #ifdef __STCP_SSL__
+                            if (_stcpWI->comm_protocol){
+                                init_data.ssl_connection_f = NULL;
+                                init_data.ssl_connection_f = SSL_new(ssl_ctx);
+                                if (init_data.ssl_connection_f == NULL){
+                                    stcp_debug(__func__, "WARNING", "ssl creation failed\n");
+                                    goto close_client;
+                                }
+                                SSL_set_fd(init_data.ssl_connection_f, init_data.connection_f);
+                                if (SSL_accept(init_data.ssl_connection_f) == -1){
+                                    stcp_debug(__func__, "WARNING", "ssl accept failed\n");
+                                    init_data.ssl_connection_f = NULL;
+                                    goto close_client;
+                                }
+                                X509 *cert = NULL;
+                                cert = SSL_get_peer_certificate(init_data.ssl_connection_f);
+                                if (cert != NULL){
+                                    char *sslInfoBuff = NULL;
+                                    sslInfoBuff = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
+                                    if (sslInfoBuff != NULL){
+                                        stcp_debug(__func__, "WEBSERVER INFO", "Subject: %s\n", sslInfoBuff);
+                                        free(sslInfoBuff);
+                                        sslInfoBuff = NULL;
+                                    }
+                                    sslInfoBuff = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
+                                    if (sslInfoBuff != NULL){
+                                        stcp_debug(__func__, "WEBSERVER INFO", "Issuer: %s\n", sslInfoBuff);
+                                        free(sslInfoBuff);
+                                        sslInfoBuff = NULL;
+                                    }
+                                    free(cert);
+                                    cert = NULL;
+                                }
+                                else {
+                                    stcp_debug(__func__, "WEBSERVER INFO", "no certificate\n");
+                                }
+                                ssl_client_fd[idx_client] = init_data.ssl_connection_f;
+                            }
+                        #endif
                         break;   
                     }   
                 }
@@ -1491,8 +1855,12 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                         keep_alive_cnt[idx_client] = 0;
                         if (_stcpWI->comm_protocol){
                             #ifdef __STCP_SSL__
-                                SSL_free(init_data.ssl_connection_f);
-                                init_data.ssl_connection_f = NULL;
+                                if (init_data.ssl_connection_f != NULL){
+                                    SSL_shutdown(init_data.ssl_connection_f);
+                                    SSL_free(init_data.ssl_connection_f);
+                                    init_data.ssl_connection_f = NULL;
+                                }
+                                ssl_client_fd[idx_client] = init_data.ssl_connection_f;
                             #endif
                         }
                         close(client_fd[idx_client]);
@@ -1504,6 +1872,12 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
         }
         for (idx_client = 0; idx_client < MAX_CLIENT && stcp_server_state == STCP_SERVER_RUNING; idx_client++){
             init_data.connection_f = client_fd[idx_client];
+            #ifdef __STCP_SSL__
+                if (_stcpWI->comm_protocol){
+                    init_data.ssl_connection_f = ssl_client_fd[idx_client];
+                }
+            #endif
+
             if (FD_ISSET(init_data.connection_f , &readfds))   
             {
                 stcp_bytes = 0;
@@ -1511,30 +1885,6 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 idx_chr = 0;
                 stcp_http_webserver_bzero(_stcpWI, _stcpWH);
                 proc_state = STCP_PROCESS_GET_HEADER;
-                #ifdef __STCP_SSL__
-                    if (_stcpWI->comm_protocol){
-                        ssl_ctx = NULL;
-                        #ifdef SSLv23_server_method
-                            ssl_ctx = SSL_CTX_new (SSLv23_server_method ());
-                        #else
-                            ssl_ctx = SSL_CTX_new (TLSv1_2_server_method ());
-                        #endif
-                        if (ssl_ctx == NULL){
-                            stcp_debug(__func__, "WARNING", "unable to create new SSL context structure\n");
-                        }
-                        init_data.ssl_connection_f = SSL_new(ssl_ctx);
-                        SSL_set_fd(init_data.ssl_connection_f, init_data.connection_f);
-                        if (SSL_accept(init_data.ssl_connection_f) == -1){
-                            stcp_debug(__func__, "WARNING", "ssl accept failed\n");
-                            goto close_client;
-                            SSL_CTX_free(ssl_ctx);
-                            ssl_ctx = NULL;
-                        }
-                        SSL_get_peer_certificate(init_data.ssl_connection_f);
-                        SSL_CTX_free(ssl_ctx);
-                        ssl_ctx = NULL;
-                    }
-                #endif
                 while(stcp_server_state == STCP_SERVER_RUNING){
                     if (proc_state == STCP_PROCESS_GET_HEADER){
                         if (!_stcpWI->comm_protocol){
@@ -1740,8 +2090,8 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 }
 
                 stcp_connection_check:
-                    if (memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "Keep-Alive", 11) == 0 ||
-                     memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "keep-alive", 11) &&
+                    if ((memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "Keep-Alive", 11) == 0 ||
+                     memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "keep-alive", 11)) &&
                      (stcp_setup_data.stcp_keepalive_sec > 0 ||
                      stcp_setup_data.stcp_keepalive_millisec > 0)
                     ){
@@ -1763,8 +2113,12 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 close_client:
                     if (_stcpWI->comm_protocol){
                         #ifdef __STCP_SSL__
-                            SSL_free(init_data.ssl_connection_f);
-                            init_data.ssl_connection_f = NULL;
+                            if (init_data.ssl_connection_f != NULL){
+                                SSL_shutdown(init_data.ssl_connection_f);
+                                SSL_free(init_data.ssl_connection_f);
+                                init_data.ssl_connection_f = NULL;
+                            }
+                            ssl_client_fd[idx_client] = init_data.ssl_connection_f;
                         #endif
                     }
                     close(init_data.connection_f);
@@ -1781,6 +2135,8 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
     }
     else {
         #ifdef __STCP_SSL__
+            SSL_CTX_free(ssl_ctx);
+            ssl_ctx = NULL;
             stcp_ssl_close(&init_data);
         #endif
     }
@@ -1925,14 +2281,62 @@ stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
             }
 
             SSL_CTX *ssl_ctx = NULL;
-            #ifdef SSLv23_server_method
-                ssl_ctx = SSL_CTX_new (SSLv23_server_method ());
+            #ifdef SSLv23_client_method
+                ssl_ctx = SSL_CTX_new (SSLv23_client_method ());
             #else
-                ssl_ctx = SSL_CTX_new (TLSv1_2_server_method ());
+                ssl_ctx = SSL_CTX_new (TLSv1_2_client_method ());
             #endif
 
             if (ssl_ctx == NULL){
                 stcp_debug(__func__, "WARNING", "unable to create new SSL context structure\n");
+            }
+
+            unsigned char* sslCertKey = NULL;
+            stcp_ssl_certkey_type certkeyType = 0;
+            printf("address: %s\n", ADDRESS);
+            shilink_print(stcp_certkey_collection);
+            sslCertKey = stcp_ssl_get_cert(ADDRESS, &certkeyType);
+            int8_t cert_flag = 0;
+            if (sslCertKey != NULL){
+                if (certkeyType == STCP_SSL_CERT_TYPE_FILE){
+                    if (SSL_CTX_use_certificate_file(ssl_ctx, (const char *) sslCertKey, SSL_FILETYPE_PEM) <= 0)
+                    {
+                        stcp_debug(__func__, "WARNING", "failed to open certificate file\n");
+                    }
+                }
+                else {
+                    if (SSL_CTX_use_certificate_ASN1(ssl_ctx, strlen((const char *) sslCertKey), sslCertKey) <= 0)
+                    {
+                        stcp_debug(__func__, "WARNING", "failed to add certificate\n");
+                    }
+                }
+                stcp_debug(__func__, "INFO", "succes to use certificate\n");
+                cert_flag = 1;
+            }
+            else {
+                stcp_debug(__func__, "WARNING", "certificate not found\n");
+            }
+            sslCertKey = NULL;
+            sslCertKey = stcp_ssl_get_key(ADDRESS, &certkeyType);
+            if (sslCertKey != NULL){
+                if (certkeyType == STCP_SSL_KEY_TYPE_FILE){
+                    if (SSL_CTX_use_PrivateKey_file(ssl_ctx, (const char *) sslCertKey, SSL_FILETYPE_PEM) <= 0)
+                    {
+                        stcp_debug(__func__, "WARNING", "failed to open private key file\n");
+                    }
+                }
+                else {
+                    if (SSL_CTX_use_PrivateKey_ASN1(0, ssl_ctx, sslCertKey, strlen((const char *) sslCertKey)) <= 0)
+                    {
+                        stcp_debug(__func__, "WARNING", "failed to add privat key\n");
+                    }
+                }
+                if (!SSL_CTX_check_private_key(ssl_ctx))
+                {
+                    stcp_debug(__func__, "WARNING", "Private key does not match the public certificate\n");
+                }
+                stcp_debug(__func__, "INFO", "succes to use private key\n");
+                cert_flag = 1;
             }
 
             init_data.ssl_connection_f = SSL_new(ssl_ctx);
@@ -1941,6 +2345,27 @@ stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
             int err = SSL_connect(init_data.ssl_connection_f);
             if (err != 1){
                 stcp_debug(__func__, "WARNING", "ssl connection failed\n");
+            }
+            if (cert_flag != 0){
+                X509 *cert = NULL;
+                cert = SSL_get_peer_certificate(init_data.ssl_connection_f);
+                if (cert != NULL){
+                    char *sslInfoBuff = NULL;
+                    sslInfoBuff = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
+                    if (sslInfoBuff != NULL){
+                        stcp_debug(__func__, "WEBSERVER INFO", "Subject: %s\n", sslInfoBuff);
+                        free(sslInfoBuff);
+                        sslInfoBuff = NULL;
+                    }
+                    sslInfoBuff = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
+                    if (sslInfoBuff != NULL){
+                        stcp_debug(__func__, "WEBSERVER INFO", "Issuer: %s\n", sslInfoBuff);
+                        free(sslInfoBuff);
+                        sslInfoBuff = NULL;
+                    }
+                    free(cert);
+                    cert = NULL;
+                }
             }
             init_data.connection_f = init_data.socket_f;
 	        stcp_debug(__func__, "INFO", "connected to the server..\n");
@@ -2601,7 +3026,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         free(end_point);
         free(protocol);
         free(response);
-        free(boundary)
+        free(boundary);
         message_request = NULL;
         host = NULL;
         end_point = NULL;
@@ -3082,12 +3507,14 @@ void stcp_ssl_close(stcpSock *init_data){
     }
     else {
         if(init_data->socket_f == init_data->connection_f){
+            SSL_shutdown(init_data->ssl_connection_f);
             SSL_free(init_data->ssl_connection_f);
             init_data->ssl_connection_f = NULL;
             close(init_data->socket_f);
             init_data->socket_f = -1;
         }
         else{
+            SSL_shutdown(init_data->ssl_connection_f);
             SSL_free(init_data->ssl_connection_f);
             init_data->ssl_connection_f = NULL;
             close(init_data->connection_f);
