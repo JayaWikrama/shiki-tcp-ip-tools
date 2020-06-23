@@ -159,6 +159,7 @@ int8_t stcp_http_webserver_add_negative_code_response(stcpWList *_stcpWList, stc
 int8_t stcp_http_webserver_add_response(stcpWList *_stcpWList, char *_end_point, char *_response_content, char *_request_method);
 int8_t stcp_http_webserver_add_response_file(stcpWList *_stcpWList, char *_end_point, char *_response_file, char *_request_method);
 int8_t stcp_http_webserver_add_response_function(stcpWList *_stcpWList, char *_end_point, char *_response_function, char *_request_method);
+int8_t stcp_http_webserver_add_response_callback(stcpWList *_stcpWList, char *_end_point, void *_response_function, char *_request_method);
 int8_t stcp_http_webserver_set_content_type(stcpWHead *_stcpWH, char *_content_type);
 int8_t stcp_http_webserver_set_accept(stcpWHead *_stcpWH, char *_accept);
 int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList _stcpWList);
