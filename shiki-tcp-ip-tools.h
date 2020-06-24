@@ -8,6 +8,12 @@
 #include <stdint.h>
 #ifdef __STCP_SSL__
   #include <openssl/ssl.h>
+  #ifndef X509_FILETYPE_PEM
+    #define X509_FILETYPE_PEM 1
+  #endif
+  #ifndef SSL_FILETYPE_PEM
+    #define SSL_FILETYPE_PEM X509_FILETYPE_PEM
+  #endif
   typedef enum {
     STCP_SSL_CERT_TYPE_FILE = 0x00,
     STCP_SSL_CERT_TYPE_TEXT = 0x01,
@@ -18,7 +24,7 @@
   } stcp_ssl_certkey_type;
 #endif
 
-#ifdef __STCP_WEBSERVER__
+#if defined __STCP_WEBSERVER__ || defined __STCP_SSL__
   #include "../shiki-linked-list/shiki-linked-list.h"
   typedef SHLink stcpWList;
 #endif

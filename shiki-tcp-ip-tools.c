@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.09.20.06.08
+    ver         : 3.09.20.06.24
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -42,7 +42,7 @@
   #include "shiki-tcp-ip-userdef.h"
 #endif
 #define SA struct sockaddr
-#define STCP_VER "3.09.20.06.08"
+#define STCP_VER "3.09.20.06.24"
 
 typedef enum {
     #ifdef __STCP_WEBSERVER__
@@ -1779,7 +1779,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
             if (ssl_ctx == NULL){
                 stcp_debug(__func__, "WARNING", "unable to create new SSL context structure\n");
             }
-
+            #if !defined __XTENSA__ && !defined ESP_PLATFORM
             unsigned char* sslCertKey = NULL;
             stcp_ssl_certkey_type certkeyType = 0;
             sslCertKey = stcp_ssl_get_cert(ADDRESS, &certkeyType);
@@ -1843,6 +1843,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
             else {
                 SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
             }
+            #endif
         #endif
         stcp_debug(__func__, "WEBSERVER INFO", "Server https listening..\n");
     }
@@ -1936,6 +1937,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                                     init_data.ssl_connection_f = NULL;
                                     goto close_client;
                                 }
+                                #if !defined __XTENSA__ && !defined ESP_PLATFORM
                                 X509 *cert = NULL;
                                 cert = SSL_get_peer_certificate(init_data.ssl_connection_f);
                                 if (cert != NULL){
@@ -1958,6 +1960,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                                 else {
                                     stcp_debug(__func__, "WEBSERVER INFO", "no certificate\n");
                                 }
+                                #endif
                                 ssl_client_fd[idx_client] = init_data.ssl_connection_f;
                             }
                         #endif
@@ -2429,6 +2432,7 @@ stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
                 stcp_debug(__func__, "WARNING", "unable to create new SSL context structure\n");
             }
 
+            #if !defined __XTENSA__ && !defined ESP_PLATFORM
             unsigned char* sslCertKey = NULL;
             stcp_ssl_certkey_type certkeyType = 0;
             shilink_print(stcp_certkey_collection);
@@ -2472,7 +2476,7 @@ stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
                 stcp_debug(__func__, "INFO", "succes to use private key\n");
                 cert_flag = 1;
             }
-
+            #endif
             init_data.ssl_connection_f = SSL_new(ssl_ctx);
             SSL_set_fd(init_data.ssl_connection_f, init_data.socket_f);
 
@@ -2480,6 +2484,7 @@ stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
             if (err != 1){
                 stcp_debug(__func__, "WARNING", "ssl connection failed\n");
             }
+            #if !defined __XTENSA__ && !defined ESP_PLATFORM
             if (cert_flag != 0){
                 X509 *cert = NULL;
                 cert = SSL_get_peer_certificate(init_data.ssl_connection_f);
@@ -2501,6 +2506,7 @@ stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
                     cert = NULL;
                 }
             }
+            #endif
             init_data.connection_f = init_data.socket_f;
 	        stcp_debug(__func__, "INFO", "connected to the server..\n");
             SSL_CTX_free(ssl_ctx);
