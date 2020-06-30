@@ -203,7 +203,12 @@ int32_t stcp_recv_data(stcpSock _init_data, unsigned char* buff, int32_t size_se
 #endif
 
 int8_t stcp_url_parser(char *_url, int8_t *_protocol, stcpSHead *_host, stcpSHead *_end_point, uint16_t *_port);
-char *stcp_http_content_generator(uint16_t _sizeof_content, char *_content_format, ...);
+char *stcp_http_content_generator(unsigned short _size_per_allocate, char *_str_format, ...);
+char *stcp_http_str_append(char *_buff_source,
+ unsigned short _size_per_allocate,
+ unsigned short _append_size,
+ char *_str_format, ...
+);
 unsigned char *stcp_http_generate_multipart_header(char *_stcp_multipart_header_input, char *_boundary_output, uint16_t *_length_part);
 unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_content, stcp_request_type _request_type);
 

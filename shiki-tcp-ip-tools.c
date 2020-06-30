@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.09.20.06.24
+    ver         : 3.10.30.06.24
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -42,7 +42,7 @@
   #include "shiki-tcp-ip-userdef.h"
 #endif
 #define SA struct sockaddr
-#define STCP_VER "3.09.20.06.24"
+#define STCP_VER "3.10.30.06.24"
 
 typedef enum {
     #ifdef __STCP_WEBSERVER__
@@ -112,62 +112,53 @@ static int8_t stcp_check_ip(char *_ip_address);
 static unsigned long stcp_get_content_length(char *_text_source);
 static unsigned char *stcp_select_content(unsigned char *response, uint32_t _content_length);
 
-void stcp_debug(const char *function_name, char *debug_type, char *debug_msg, ...){
+inline void stcp_debug(const char *function_name, char *debug_type, char *debug_msg, ...){
 	if (stcp_setup_data.stcp_debug_mode == STCP_DEBUG_ON || strcmp(debug_type, "INFO") != 0){
-        struct tm *d_tm;
+        struct tm *d_tm = NULL;
         struct timeval tm_debug;
         uint16_t msec = 0;
-	    va_list aptr;
 		
 	    gettimeofday(&tm_debug, NULL);
 	    d_tm = localtime(&tm_debug.tv_sec);
         msec = tm_debug.tv_usec/1000;
 
-	    char* tmp_debug_msg;
-        tmp_debug_msg = (char *) malloc(256*sizeof(char));
-        if (tmp_debug_msg == NULL){
-            printf("%02d-%02d-%04d %02d:%02d:%02d.%03i ERROR: %s: failed to allocate debug variable memory",
-             d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec, msec, __func__
-            );
-            return;
-        }
-	    va_start(aptr, debug_msg);
-	    vsprintf(tmp_debug_msg, debug_msg, aptr);
-	    va_end(aptr);
         #ifdef __linux__
             if (strcmp(debug_type, "INFO")==0)
-                printf("\033[1;32m%02d-%02d-%04d %02d:%02d:%02d.%03d\033[1;34m STCP\033[1;32m %s: %s: %s\033[0m",
+                printf("%02d-%02d-%04d %02d:%02d:%02d.%03d\033[0;34m STCP\033[1;32m %s\033[0m %s: ",
                  d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec,
-                 msec, debug_type, function_name, tmp_debug_msg
+                 msec, debug_type, function_name
                 );
             if (strcmp(debug_type, "WEBSERVER INFO")==0)
-                printf("\033[1;32m%02d-%02d-%04d %02d:%02d:%02d.%03d\033[1;34m STCP\033[1;32m %s: %s: %s\033[0m",
+                printf("%02d-%02d-%04d %02d:%02d:%02d.%03d\033[0;34m STCP\033[1;32m %s\033[0m %s: ",
                  d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec,
-                 msec, debug_type, function_name, tmp_debug_msg
+                 msec, debug_type, function_name
                 );
     	    else if (strcmp(debug_type, "WARNING")==0)
-                printf("\033[1;33m%02d-%02d-%04d %02d:%02d:%02d.%03d\033[1;34m STCP\033[1;33m %s: %s: %s\033[0m",
+                printf("%02d-%02d-%04d %02d:%02d:%02d.%03d\033[0;34m STCP\033[1;33m %s\033[0m %s: ",
                  d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec,
-                 msec, debug_type, function_name, tmp_debug_msg
+                 msec, debug_type, function_name
                 );
     	    else if (strcmp(debug_type, "ERROR")==0)
-                printf("\033[1;31m%02d-%02d-%04d %02d:%02d:%02d.%03d\033[1;34m STCP\033[1;31m %s: %s: %s\033[0m",
+                printf("%02d-%02d-%04d %02d:%02d:%02d.%03d\033[0;34m STCP\033[1;31m %s\033[0m %s: ",
                  d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec,
-                 msec, debug_type, function_name, tmp_debug_msg
+                 msec, debug_type, function_name
                 );
             else if (strcmp(debug_type, "CRITICAL")==0)
-                printf("\033[1;31m%02d-%02d-%04d %02d:%02d:%02d.%03d\033[1;34m STCP\033[1;31m %s: %s: %s\033[0m",
+                printf("%02d-%02d-%04d %02d:%02d:%02d.%03d\033[0;34m STCP\033[1;31m %s\033[0m %s: ",
                  d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec,
-                 msec, debug_type, function_name, tmp_debug_msg
+                 msec, debug_type, function_name
                 );
 	    #else
-            printf("%02d-%02d-%04d %02d:%02d:%02d.%03d %s: %s: %s",
+            printf("%02d-%02d-%04d %02d:%02d:%02d.%03d %s: %s: ",
              d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec,
-             msec, debug_type, function_name, tmp_debug_msg
+             msec, debug_type, function_name
             );
         #endif
-        free(tmp_debug_msg);
-        tmp_debug_msg = NULL;
+
+        va_list aptr;
+        va_start(aptr, debug_msg);
+	    vfprintf(stdout, debug_msg, aptr);
+	    va_end(aptr);
     }
 }
 
@@ -1062,7 +1053,7 @@ int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_h
         break;
     }
     if (_content_length > 0){
-        header_tmp = (char *) stcp_http_content_generator(1024,
+        header_tmp = (char *) stcp_http_content_generator(128,
          "HTTP/1.1 %s\r\n"
          "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n"
          "Content-Type: %s\r\n"
@@ -1081,7 +1072,7 @@ int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_h
         );
     }
     else {
-        header_tmp = (char *) stcp_http_content_generator(1024,
+        header_tmp = (char *) stcp_http_content_generator(128,
          "HTTP/1.1 %s\r\n"
          "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n"
          "Content-Type: %s\r\n"
@@ -1491,7 +1482,7 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
         char *buffer_info;
 
         buffer_info = stcp_http_content_generator(
-         (strlen(_stcpWI->server_header) + 13),
+         32,
          "%snot found!\n", _stcpWI->server_header
         );
         if (buffer_info == NULL){
@@ -2149,7 +2140,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                         goto close_client;
                     }
                     buffer_info = stcp_http_content_generator(
-                     1024,
+                     64,
                      "%scheck header!\r\n", _stcpWI->server_header
                     );
                     if (buffer_info == NULL){
@@ -2207,7 +2198,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                         goto close_client;
                     }
                     buffer_info = stcp_http_content_generator(
-                     (strlen(_stcpWI->server_header) + strlen(response_content) + 2),
+                     64,
                      "%s%s", _stcpWI->server_header, response_content
                     );
                     if (buffer_info == NULL){
@@ -2832,29 +2823,327 @@ int8_t stcp_url_parser(char *_url, int8_t *_protocol, stcpSHead *_host, stcpSHea
     return 0;
 }
 
-char *stcp_http_content_generator(uint16_t _sizeof_content, char *_content_format, ...){
-    char *stcp_content = NULL;
-    stcp_content = (char *) malloc(_sizeof_content*sizeof(char));
-    if (stcp_content == NULL){
-        #ifdef __STCP_DEBUG__
-        stcp_debug(__func__, "WARNING", "failed to allocate stcp_content memory\n");
-        #endif
-        return NULL;
-    }
-    va_list aptr;
-	va_start(aptr, _content_format);
-	vsprintf(stcp_content, _content_format, aptr);
-	va_end(aptr);
+char *stcp_http_content_generator(unsigned short _size_per_allocate, char *_str_format, ...){
+	va_list ar;
+	/* var list */
+	long long lli = 0;
+	unsigned long long llu = 0;
+	long li = 0;
+	unsigned long lu = 0;
+	int d = 0;
+	unsigned int i = 0;
+	char c = 0;
+	float f = 0.0;
+	char *s = NULL;
 
-    if ((strlen(stcp_content) + 1) != _sizeof_content){
-        if ((strlen(stcp_content) + 1) > _sizeof_content){
-            #ifdef __STCP_DEBUG__
-            stcp_debug(__func__, "WARNING", "size input to small\n");
-            #endif
-        }
-        stcp_content = (char *) realloc(stcp_content, (strlen(stcp_content) + 1));
-    }
-    return stcp_content;
+	char collect_flag = 0x00;
+	char format[8];
+	char buff_tmp[32];
+	unsigned char idx_format = 0;
+	unsigned short buff_length = 0;
+	unsigned short idx_rfmt = 0;
+
+	char *buff_result = NULL;
+	unsigned short result_size = _size_per_allocate;
+	unsigned short idx_result = 0;
+
+	buff_result = (char *) malloc(result_size * sizeof(char));
+	if(buff_result == NULL){
+		return NULL;
+	}
+	memset(buff_result, 0x00, result_size * sizeof(char));
+
+	va_start(ar, _str_format);
+	while(_str_format[idx_rfmt]){
+		if (!collect_flag){
+			if (_str_format[idx_rfmt] == 0x25){
+				collect_flag = 0x01;
+				idx_format = 0x01;
+				memset(format, 0x00, sizeof(format));
+				format[0] = 0x25;
+			}
+			else {
+				buff_result[idx_result] = _str_format[idx_rfmt];
+				if (result_size <= idx_result + 2){
+					result_size += _size_per_allocate;
+					buff_result = (char *) realloc(buff_result, result_size * sizeof(char));
+				}
+				idx_result++;
+				buff_result[idx_result] = 0x00;
+			}
+		}
+		else {
+			format[idx_format] = _str_format[idx_rfmt];
+			idx_format++;
+			if (_str_format[idx_rfmt] < 0x30 || _str_format[idx_rfmt] > 0x39){
+				memset(buff_tmp, 0x00, sizeof(buff_tmp));
+				switch(_str_format[idx_rfmt]){
+					case 's':
+						s = va_arg(ar, char *); 
+						goto common_operation_str_rfmt;
+					case 'd':
+						d = va_arg(ar, int);
+						sprintf(buff_tmp, format, d);
+						s = buff_tmp;
+						goto common_operation_str_rfmt;
+					case 'i':
+						i = va_arg(ar, unsigned int);
+						sprintf(buff_tmp, format, i);
+						s = buff_tmp;
+						goto common_operation_str_rfmt;
+					case 'f':
+						f = (float) va_arg(ar, double);
+						sprintf(buff_tmp, format, f);
+						s = buff_tmp;
+						goto common_operation_str_rfmt;
+					case 'l':
+						idx_rfmt++;
+						if (_str_format[idx_rfmt] == 'i'){
+							format[idx_format] = _str_format[idx_rfmt];
+							li = va_arg(ar, long);
+							sprintf(buff_tmp, format, li);
+							s = buff_tmp;
+							goto common_operation_str_rfmt;
+						}
+						else if (_str_format[idx_rfmt] == 'u'){
+							format[idx_format] = _str_format[idx_rfmt];
+							lu = va_arg(ar, unsigned long);
+							sprintf(buff_tmp, format, lu);
+							s = buff_tmp;
+							goto common_operation_str_rfmt;
+						}
+						else if (_str_format[idx_rfmt] == 'l'){
+							format[idx_format] = _str_format[idx_rfmt];
+							idx_format++;
+							idx_rfmt++;
+							if (_str_format[idx_rfmt] == 'i'){
+								format[idx_format] = _str_format[idx_rfmt];
+								lli = va_arg(ar, long long);
+								sprintf(buff_tmp, format, lli);
+								s = buff_tmp;
+								goto common_operation_str_rfmt;
+							}
+							else if (_str_format[idx_rfmt] == 'u'){
+								format[idx_format] = _str_format[idx_rfmt];
+								llu = va_arg(ar, unsigned long long);
+								sprintf(buff_tmp, format, llu);
+								s = buff_tmp;
+								goto common_operation_str_rfmt;
+							}
+							else {
+								format[idx_format] = _str_format[idx_rfmt];
+								s = format;
+								goto common_operation_str_rfmt;
+							}
+						}
+						break;
+					case 'c':
+						c = (char)va_arg(ar, int);
+						if (result_size <= idx_result + 2){
+							result_size += _size_per_allocate;
+							buff_result = (char *) realloc(buff_result, result_size * sizeof(char));
+						}
+						buff_result[idx_result] = c;
+						buff_length = 1;
+						break;
+					default:
+						s = format + 1;
+						common_operation_str_rfmt:
+						buff_length = (unsigned short) strlen(s);
+						if(result_size <= idx_result + buff_length + 2){
+							result_size += (buff_length + 2);
+							buff_result = (char *) realloc(buff_result, result_size * sizeof(char));
+						}
+						memcpy(buff_result + idx_result, s, buff_length);
+						s = NULL;
+						break;
+				}
+				idx_result += buff_length;
+				buff_result[idx_result] = 0x00;
+				collect_flag = 0x00;
+			}
+		}
+		idx_rfmt++;
+	}
+	va_end(ar);
+	buff_result = (char *) realloc(buff_result, (idx_result + 1)*sizeof(char));
+	return buff_result;
+}
+
+char *stcp_http_str_append(char *_buff_source,
+ unsigned short _size_per_allocate,
+ unsigned short _append_size,
+ char *_str_format, ...
+){
+	char *buff_result = NULL;
+	unsigned short result_size = _size_per_allocate;
+	unsigned short idx_result = 0;
+
+	buff_result = _buff_source;
+	if (buff_result == NULL){
+		if (_append_size){
+			result_size = _append_size + 1;
+			buff_result = (char *) malloc(result_size * sizeof(char));
+			if(buff_result == NULL){
+				return NULL;
+			}
+			memcpy(buff_result, _str_format, _append_size);
+			buff_result[_append_size] = 0x00;
+			return buff_result;
+		}
+		buff_result = (char *) malloc(result_size * sizeof(char));
+		if(buff_result == NULL){
+			return NULL;
+		}
+		memset(buff_result, 0x00, result_size * sizeof(char));
+	}
+	else {
+		idx_result = (unsigned short) strlen(buff_result);
+		if (_append_size){
+			result_size = idx_result + _append_size + 1;
+			buff_result = (char *) realloc(buff_result, result_size * sizeof(char));
+			memcpy(buff_result + idx_result, _str_format, _append_size);
+			buff_result[result_size - 1] = 0x00;
+			return buff_result;
+		}
+		result_size = idx_result + _size_per_allocate;
+		buff_result = (char *) realloc(buff_result, result_size * sizeof(char));
+	}
+
+	va_list ar;
+	/* var list */
+	long long lli = 0;
+	unsigned long long llu = 0;
+	long li = 0;
+	unsigned long lu = 0;
+	int d = 0;
+	unsigned int i = 0;
+	char c = 0;
+	float f = 0.0;
+	char *s = NULL;
+
+	char collect_flag = 0x00;
+	char format[8];
+	char buff_tmp[32];
+	unsigned char idx_format = 0;
+	unsigned short buff_length = 0;
+	unsigned short idx_rfmt = 0;
+
+	va_start(ar, _str_format);
+	while(_str_format[idx_rfmt]){
+		if (!collect_flag){
+			if (_str_format[idx_rfmt] == 0x25){
+				collect_flag = 0x01;
+				idx_format = 0x01;
+				memset(format, 0x00, sizeof(format));
+				format[0] = 0x25;
+			}
+			else {
+				buff_result[idx_result] = _str_format[idx_rfmt];
+				if (result_size <= idx_result + 2){
+					result_size += _size_per_allocate;
+					buff_result = (char *) realloc(buff_result, result_size * sizeof(char));
+				}
+				idx_result++;
+				buff_result[idx_result] = 0x00;
+			}
+		}
+		else {
+			format[idx_format] = _str_format[idx_rfmt];
+			idx_format++;
+			if (_str_format[idx_rfmt] < 0x30 || _str_format[idx_rfmt] > 0x39){
+				memset(buff_tmp, 0x00, sizeof(buff_tmp));
+				switch(_str_format[idx_rfmt]){
+					case 's':
+						s = va_arg(ar, char *); 
+						goto common_operation_str_rfmt;
+					case 'd':
+						d = va_arg(ar, int);
+						sprintf(buff_tmp, format, d);
+						s = buff_tmp;
+						goto common_operation_str_rfmt;
+					case 'i':
+						i = va_arg(ar, unsigned int);
+						sprintf(buff_tmp, format, i);
+						s = buff_tmp;
+						goto common_operation_str_rfmt;
+					case 'f':
+						f = (float) va_arg(ar, double);
+						sprintf(buff_tmp, format, f);
+						s = buff_tmp;
+						goto common_operation_str_rfmt;
+					case 'l':
+						idx_rfmt++;
+						if (_str_format[idx_rfmt] == 'i'){
+							format[idx_format] = _str_format[idx_rfmt];
+							li = va_arg(ar, long);
+							sprintf(buff_tmp, format, li);
+							s = buff_tmp;
+							goto common_operation_str_rfmt;
+						}
+						else if (_str_format[idx_rfmt] == 'u'){
+							format[idx_format] = _str_format[idx_rfmt];
+							lu = va_arg(ar, unsigned long);
+							sprintf(buff_tmp, format, lu);
+							s = buff_tmp;
+							goto common_operation_str_rfmt;
+						}
+						else if (_str_format[idx_rfmt] == 'l'){
+							format[idx_format] = _str_format[idx_rfmt];
+							idx_format++;
+							idx_rfmt++;
+							if (_str_format[idx_rfmt] == 'i'){
+								format[idx_format] = _str_format[idx_rfmt];
+								lli = va_arg(ar, long long);
+								sprintf(buff_tmp, format, lli);
+								s = buff_tmp;
+								goto common_operation_str_rfmt;
+							}
+							else if (_str_format[idx_rfmt] == 'u'){
+								format[idx_format] = _str_format[idx_rfmt];
+								llu = va_arg(ar, unsigned long long);
+								sprintf(buff_tmp, format, llu);
+								s = buff_tmp;
+								goto common_operation_str_rfmt;
+							}
+							else {
+								format[idx_format] = _str_format[idx_rfmt];
+								s = format;
+								goto common_operation_str_rfmt;
+							}
+						}
+						break;
+					case 'c':
+						c = (char)va_arg(ar, int);
+						if (result_size <= idx_result + 2){
+							result_size += _size_per_allocate;
+							buff_result = (char *) realloc(buff_result, result_size * sizeof(char));
+						}
+						buff_result[idx_result] = c;
+						buff_length = 1;
+						break;
+					default:
+						s = format + 1;
+						common_operation_str_rfmt:
+						buff_length = (unsigned short) strlen(s);
+						if(result_size <= idx_result + buff_length + 2){
+							result_size += (buff_length + 2);
+							buff_result = (char *) realloc(buff_result, result_size * sizeof(char));
+						}
+						memcpy(buff_result + idx_result, s, buff_length);
+						s = NULL;
+						break;
+				}
+				idx_result += buff_length;
+				buff_result[idx_result] = 0x00;
+				collect_flag = 0x00;
+			}
+		}
+		idx_rfmt++;
+	}
+	va_end(ar);
+	buff_result = (char *) realloc(buff_result, (idx_result + 1)*sizeof(char));
+	return buff_result;
 }
 
 unsigned char *stcp_http_generate_multipart_header(char *_stcp_multipart_header_input, char *_boundary_output, uint16_t *_length_part){
@@ -3055,12 +3344,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
     FILE *download_file = NULL;
     uint8_t try_times = 0;
 
-    length_of_message = strlen(_req_type) + strlen(
-     " / HTTP/1.1\r\n"
-     "Host: \r\n"
-     "\r\n"
-     "Content-Length: 00000\r\n\r\n"
-     "\r\n\r\n");
+    length_of_message = strlen(_req_type) + 53;
     stcp_trx_buffer = (unsigned char *) malloc((length_of_message + 1) * sizeof(unsigned char));
     if (stcp_trx_buffer == NULL){
         stcp_debug(__func__, "ERROR", "failed to allocate message variable memory\n");
@@ -3116,9 +3400,6 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         free(stcp_trx_buffer);
         free(response);
         stcp_trx_buffer = NULL;
-        host = NULL;
-        end_point = NULL;
-        protocol = NULL;
         response = NULL;
         if (_header != NULL){
             if (strstr(_header, "multipart/form-data") != NULL){
