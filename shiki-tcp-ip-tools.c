@@ -851,6 +851,9 @@ static void stcp_http_webserver_header_segment(unsigned char *_source_text, unsi
             *_pos = idx_char;
             for (i=idx_char; i<len_buff; i++){
                 if(_source_text[i] != _end_code){
+                    if (_source_text[i] >= 'A' && _source_text[i] <= 'Z'){
+                        _source_text[i] += 0x20;
+                    }
                     content_size++;
                 }
                 else {
@@ -1085,8 +1088,7 @@ int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_h
          _content_length
         );
     }
-    if ((memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "Keep-Alive", 10) == 0 ||
-     memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "keep-alive", 10) == 0) &&
+    if (memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "keep-alive", 10) == 0 &&
      _content_length > 0
     ){
         header_tmp = (char *) stcp_http_str_append(header_tmp,
@@ -2233,9 +2235,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 }
 
                 stcp_connection_check:
-                    if ((memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "Keep-Alive", 10) == 0 ||
-                     memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "keep-alive", 10) == 0) &&
-                     strstr(_stcpWI->server_header, "keep-alive") != NULL &&
+                    if (strstr(_stcpWI->server_header, "keep-alive") != NULL &&
                      (stcp_setup_data.stcp_keepalive_sec > 0 ||
                      stcp_setup_data.stcp_keepalive_millisec > 0)
                     ){
