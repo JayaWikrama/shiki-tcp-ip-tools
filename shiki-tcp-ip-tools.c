@@ -825,7 +825,7 @@ static void stcp_http_webserver_free(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stc
     *_stcpWList = NULL;
 }
 
-static void stcp_http_webserver_header_segment(unsigned char *_source_text, unsigned char *_specific_word, uint16_t *_pos, uint16_t *_size, unsigned char _end_code){
+static void stcp_http_webserver_header_segment(unsigned char *_source_text, unsigned char *_specific_word, uint16_t *_pos, uint16_t *_size, unsigned char _end_code, int8_t _mode){
     uint16_t len_buff = strlen((char *) _source_text);
     unsigned char buff_tmp[strlen((char *) _specific_word) + 3];
     uint16_t idx_char = 0;
@@ -851,7 +851,7 @@ static void stcp_http_webserver_header_segment(unsigned char *_source_text, unsi
             *_pos = idx_char;
             for (i=idx_char; i<len_buff; i++){
                 if(_source_text[i] != _end_code){
-                    if (_source_text[i] >= 'A' && _source_text[i] <= 'Z'){
+                    if (_source_text[i] >= 'A' && _source_text[i] <= 'Z' && _mode){
                         _source_text[i] += 0x20;
                     }
                     content_size++;
@@ -935,7 +935,8 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
          (unsigned char *) "Content-Type:",
          &(_stcpWI->rcv_content_type.stcp_sub_pos),
          &(_stcpWI->rcv_content_type.stcp_sub_size),
-         '\r');
+         '\r',
+         0x01);
     }
     stcp_http_webserver_print_segment((unsigned char *) _stcpWI->rcv_header, _stcpWI->rcv_content_type, "CONTENT TYPE");
     /* GET CONNECTION TYPE */
@@ -945,7 +946,8 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
          (unsigned char *) "Connection:",
          &(_stcpWI->rcv_connection_type.stcp_sub_pos),
          &(_stcpWI->rcv_connection_type.stcp_sub_size),
-         '\r');
+         '\r',
+         0x01);
     }
     stcp_http_webserver_print_segment((unsigned char *) _stcpWI->rcv_header, _stcpWI->rcv_connection_type, "CONNECTION");
     /* GET ACCEPTION TYPE */
@@ -955,7 +957,8 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
          (unsigned char *) "Accept:",
          &(_stcpWI->rcv_acception_type.stcp_sub_pos),
          &(_stcpWI->rcv_acception_type.stcp_sub_size),
-         '\r');
+         '\r',
+         0x01);
     }
     stcp_http_webserver_print_segment((unsigned char *) _stcpWI->rcv_header, _stcpWI->rcv_acception_type, "ACCEPT");
     /* GET AUTH */
@@ -965,7 +968,8 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
          (unsigned char *) "Authentication:",
          &(_stcpWI->rcv_auth.stcp_sub_pos),
          &(_stcpWI->rcv_auth.stcp_sub_size),
-         '\r');
+         '\r',
+         0x00);
     }
     else if (strstr(_stcpWI->rcv_header, "Authorization:") != NULL){
         stcp_http_webserver_header_segment(
@@ -973,7 +977,8 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
          (unsigned char *) "Authorization:",
          &(_stcpWI->rcv_auth.stcp_sub_pos),
          &(_stcpWI->rcv_auth.stcp_sub_size),
-         '\r');
+         '\r',
+         0x00);
     }
     stcp_http_webserver_print_segment((unsigned char *) _stcpWI->rcv_header, _stcpWI->rcv_auth, "AUTH");
     /* GET COOKIE */
@@ -983,7 +988,8 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
          (unsigned char *) "Cookie:",
          &(_stcpWI->rcv_cookies.stcp_sub_pos),
          &(_stcpWI->rcv_cookies.stcp_sub_size),
-         '\r');
+         '\r',
+         0x00);
     }
     stcp_http_webserver_print_segment((unsigned char *) _stcpWI->rcv_header, _stcpWI->rcv_cookies, "COOKIE");
     /* GET CONTENT LENTH */
