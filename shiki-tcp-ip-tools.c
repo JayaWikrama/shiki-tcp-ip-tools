@@ -1060,48 +1060,50 @@ int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_h
             strcpy(month_id, "Dec");
         break;
     }
-    if (_content_length > 0){
-        header_tmp = (char *) stcp_http_content_generator(128,
-         "HTTP/1.1 %s\r\n"
-         "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n"
-         "Content-Type: %s\r\n"
-         "Content-Length: %i\r\n"
-         "Server: stcp-webservice\r\n"
-         "Accept-Ranges: none\r\n"
-         "Accept: %s\r\n"
-         "Vary: Accept-Encoding\r\n"
-         "Connection: close\r\n"
-         "\r\n",
-         _response_header,
-         day_id, tm_access->tm_mday, month_id, (tm_access->tm_year + 1900), tm_access->tm_hour, tm_access->tm_min, tm_access->tm_sec,
-         _content_type,
-         _content_length,
-         _acception_type
-        );
-    }
-    else {
-        header_tmp = (char *) stcp_http_content_generator(128,
-         "HTTP/1.1 %s\r\n"
-         "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n"
-         "Content-Type: %s\r\n"
-         "Server: stcp-webservice\r\n"
-         "Accept-Ranges: none\r\n"
-         "Accept: %s\r\n"
-         "Vary: Accept-Encoding\r\n"
-         "Connection: close\r\n"
-         "\r\n",
-         _response_header,
-         day_id, tm_access->tm_mday, month_id, (tm_access->tm_year + 1900), tm_access->tm_hour, tm_access->tm_min, tm_access->tm_sec,
-         _content_type,
-         _acception_type
-        );
-    }
-
+    header_tmp = (char *) stcp_http_content_generator(128,
+     "HTTP/1.1 %s\r\n"
+     "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n"
+     "Content-Type: %s\r\n"
+     "Server: stcp-webservice\r\n"
+     "Accept-Ranges: none\r\n"
+     "Accept: %s\r\n"
+     "Vary: Accept-Encoding\r\n",
+     _response_header,
+     day_id, tm_access->tm_mday, month_id, (tm_access->tm_year + 1900), tm_access->tm_hour, tm_access->tm_min, tm_access->tm_sec,
+     _content_type,
+     _acception_type
+    );
     if (header_tmp == NULL){
         stcp_debug(__func__, "ERROR", "failed to generate webserver header\n");
         return -1;
     }
-
+    if (_content_length > 0){
+        header_tmp = (char *) stcp_http_str_append(header_tmp,
+         (unsigned short) 32,
+         (unsigned short) 0,
+         "Content-Length: %i\r\n",
+         _content_length
+        );
+    }
+    if ((memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "Keep-Alive", 10) == 0 ||
+     memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "keep-alive", 10) == 0) &&
+     _content_length > 0
+    ){
+        header_tmp = (char *) stcp_http_str_append(header_tmp,
+         (unsigned short) 32,
+         (unsigned short) 26,
+         "Connection: keep-alive\r\n"
+         "\r\n"
+        );
+    }
+    else {
+        header_tmp = (char *) stcp_http_str_append(header_tmp,
+         (unsigned short) 32,
+         (unsigned short) 26,
+         "Connection: close\r\n"
+         "\r\n"
+        );
+    }
     _stcpWI->server_header = (char *) realloc(_stcpWI->server_header, (strlen(header_tmp) + 1)*sizeof(char));
     strcpy(_stcpWI->server_header, header_tmp);
 
@@ -1996,7 +1998,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                         close(client_fd[idx_client]);
                         client_fd[idx_client] = 0;
                         memset(&client_addr[idx_client], 0x00, sizeof(struct in_addr));
-                        stcp_debug(__func__, "WEBSERVER INFO", "one client connection closed (%i)\n", idx_client);
+                        stcp_debug(__func__, "WEBSERVER INFO", "one client connection\033[1;31m closed\033[0m (%i)\n", idx_client);
                     }
                 }
             }
@@ -2132,7 +2134,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                     }
                 }
                 if (strlen(_stcpWI->rcv_content) > 0){
-                    printf("Content (%lu):\n%s\n", strlen(_stcpWI->rcv_content), _stcpWI->rcv_content);
+                    printf("Content (%li):\n%s\n", (long) strlen(_stcpWI->rcv_content), _stcpWI->rcv_content);
                 }
                 
                 char *response_content = NULL;
@@ -2231,9 +2233,9 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 }
 
                 stcp_connection_check:
-                    if ((memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "Keep-Alive", 11) == 0 ||
-                     memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "keep-alive", 11) == 0) &&
-                     strstr(_stcpWI->rcv_header + _stcpWI->rcv_acception_type.stcp_sub_pos, "event-stream") != NULL &&
+                    if ((memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "Keep-Alive", 10) == 0 ||
+                     memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "keep-alive", 10) == 0) &&
+                     strstr(_stcpWI->server_header, "keep-alive") != NULL &&
                      (stcp_setup_data.stcp_keepalive_sec > 0 ||
                      stcp_setup_data.stcp_keepalive_millisec > 0)
                     ){
@@ -2265,7 +2267,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                     }
                     close(init_data.connection_f);
                     init_data.connection_f = 0;
-                    stcp_debug(__func__, "WEBSERVER INFO", "one client connection closed (%d)\n", idx_client);
+                    stcp_debug(__func__, "WEBSERVER INFO", "one client connection \033[1;31m closed\033[0m (%d)\n", idx_client);
                 stcp_next:
                     client_fd[idx_client] = init_data.connection_f;
             }
