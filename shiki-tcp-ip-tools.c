@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.10.30.06.24
+    ver         : 3.11.20.07.01
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -42,7 +42,7 @@
   #include "shiki-tcp-ip-userdef.h"
 #endif
 #define SA struct sockaddr
-#define STCP_VER "3.10.30.06.24"
+#define STCP_VER "3.11.20.07.01"
 
 typedef enum {
     #ifdef __STCP_WEBSERVER__
@@ -798,11 +798,17 @@ static void stcp_http_webserver_bzero(stcpWInfo *_stcpWI, stcpWHead *_stcpWH){
 
 static void stcp_http_webserver_free(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList *_stcpWList){
     free(_stcpWI->server_header);
+    stcp_debug(__func__, "WEBSERVER INFO", "free server header success\n");
     free(_stcpWI->rcv_header);
+    stcp_debug(__func__, "WEBSERVER INFO", "free receive header success\n");
     free(_stcpWI->rcv_content);
+    stcp_debug(__func__, "WEBSERVER INFO", "free receive content success\n");
     free(_stcpWI->ipaddr);
+    stcp_debug(__func__, "WEBSERVER INFO", "free ip adrress buffer success\n");
     free(_stcpWH->content_type);
+    stcp_debug(__func__, "WEBSERVER INFO", "free content type success\n");
     free(_stcpWH->accept_type);
+    stcp_debug(__func__, "WEBSERVER INFO", "free accept type success\n");
 
     _stcpWI->server_header = NULL;
     _stcpWI->rcv_header = NULL;
@@ -813,7 +819,9 @@ static void stcp_http_webserver_free(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stc
     _stcpWH->content_type = NULL;
     _stcpWH->accept_type = NULL;
 
+    stcp_debug(__func__, "WEBSERVER INFO", "try to free response list\n");
     shilink_free(_stcpWList);
+    stcp_debug(__func__, "WEBSERVER INFO", "free response list success\n");
     *_stcpWList = NULL;
 }
 
@@ -1842,6 +1850,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
     len = sizeof(cli);
 
     int client_fd[MAX_CLIENT];
+    struct in_addr client_addr[MAX_CLIENT];
     uint16_t keep_alive_cnt[MAX_CLIENT];
     #ifdef __STCP_SSL__
         SSL *ssl_client_fd[MAX_CLIENT];
@@ -1849,6 +1858,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
     struct timeval tv_timer;
 
     memset(client_fd, 0x00, sizeof(client_fd));
+    memset(&client_addr, 0x00, sizeof(client_addr));
     memset(keep_alive_cnt, 0x00, sizeof(keep_alive_cnt));
     memset(buffer, 0x00, buffer_size*sizeof(char));
 
@@ -1907,12 +1917,12 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 stcp_debug(__func__, "INFO", "accept failed\n");
             }
             else {
-                strcpy(_stcpWI->ipaddr, inet_ntoa(cli.sin_addr));
                 for (idx_client = 0; idx_client < MAX_CLIENT; idx_client++){
                     if(client_fd[idx_client] == 0 ){
                         client_fd[idx_client] = init_data.connection_f;
+                        client_addr[idx_client] = cli.sin_addr;
                         stcp_debug(__func__, "WEBSERVER INFO", "new connection (%d:%d) %s:%d\n" ,
-                         init_data.connection_f, idx_client, _stcpWI->ipaddr, ntohs(cli.sin_port)
+                         init_data.connection_f, idx_client, inet_ntoa(cli.sin_addr), ntohs(cli.sin_port)
                         );
                         #ifdef __STCP_SSL__
                             if (_stcpWI->comm_protocol){
@@ -1985,6 +1995,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                         }
                         close(client_fd[idx_client]);
                         client_fd[idx_client] = 0;
+                        memset(&client_addr[idx_client], 0x00, sizeof(struct in_addr));
                         stcp_debug(__func__, "WEBSERVER INFO", "one client connection closed (%i)\n", idx_client);
                     }
                 }
@@ -2128,6 +2139,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 char *buffer_info = NULL;
                 memset(response_code, 0x00, sizeof(response_code));
                 response_content = stcp_http_webserver_select_response(_stcpWI, _stcpWList, response_code);
+                strcpy(_stcpWI->ipaddr, inet_ntoa(client_addr[idx_client]));
                 /* user handling start here */
                 if (response_content == NULL) {
                     if (stcp_http_webserver_generate_header(
@@ -2220,7 +2232,8 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
 
                 stcp_connection_check:
                     if ((memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "Keep-Alive", 11) == 0 ||
-                     memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "keep-alive", 11)) &&
+                     memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "keep-alive", 11) == 0) &&
+                     strstr(_stcpWI->rcv_header + _stcpWI->rcv_acception_type.stcp_sub_pos, "event-stream") != NULL &&
                      (stcp_setup_data.stcp_keepalive_sec > 0 ||
                      stcp_setup_data.stcp_keepalive_millisec > 0)
                     ){
@@ -2256,7 +2269,6 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                 stcp_next:
                     client_fd[idx_client] = init_data.connection_f;
             }
-            usleep(100);
         }
     }
     if (!_stcpWI->comm_protocol){
@@ -2826,14 +2838,6 @@ int8_t stcp_url_parser(char *_url, int8_t *_protocol, stcpSHead *_host, stcpSHea
 char *stcp_http_content_generator(unsigned short _size_per_allocate, char *_str_format, ...){
 	va_list ar;
 	/* var list */
-	long long lli = 0;
-	unsigned long long llu = 0;
-	long li = 0;
-	unsigned long lu = 0;
-	int d = 0;
-	unsigned int i = 0;
-	char c = 0;
-	float f = 0.0;
 	char *s = NULL;
 
 	char collect_flag = 0x00;
@@ -2882,33 +2886,28 @@ char *stcp_http_content_generator(unsigned short _size_per_allocate, char *_str_
 						s = va_arg(ar, char *); 
 						goto common_operation_str_rfmt;
 					case 'd':
-						d = va_arg(ar, int);
-						sprintf(buff_tmp, format, d);
+						sprintf(buff_tmp, format, va_arg(ar, int));
 						s = buff_tmp;
 						goto common_operation_str_rfmt;
 					case 'i':
-						i = va_arg(ar, unsigned int);
-						sprintf(buff_tmp, format, i);
+						sprintf(buff_tmp, format, va_arg(ar, unsigned int));
 						s = buff_tmp;
 						goto common_operation_str_rfmt;
 					case 'f':
-						f = (float) va_arg(ar, double);
-						sprintf(buff_tmp, format, f);
+						sprintf(buff_tmp, format, (float) va_arg(ar, double));
 						s = buff_tmp;
 						goto common_operation_str_rfmt;
 					case 'l':
 						idx_rfmt++;
 						if (_str_format[idx_rfmt] == 'i'){
 							format[idx_format] = _str_format[idx_rfmt];
-							li = va_arg(ar, long);
-							sprintf(buff_tmp, format, li);
+							sprintf(buff_tmp, format, va_arg(ar, long));
 							s = buff_tmp;
 							goto common_operation_str_rfmt;
 						}
 						else if (_str_format[idx_rfmt] == 'u'){
 							format[idx_format] = _str_format[idx_rfmt];
-							lu = va_arg(ar, unsigned long);
-							sprintf(buff_tmp, format, lu);
+							sprintf(buff_tmp, format, va_arg(ar, unsigned long));
 							s = buff_tmp;
 							goto common_operation_str_rfmt;
 						}
@@ -2918,15 +2917,13 @@ char *stcp_http_content_generator(unsigned short _size_per_allocate, char *_str_
 							idx_rfmt++;
 							if (_str_format[idx_rfmt] == 'i'){
 								format[idx_format] = _str_format[idx_rfmt];
-								lli = va_arg(ar, long long);
-								sprintf(buff_tmp, format, lli);
+								sprintf(buff_tmp, format, va_arg(ar, long long));
 								s = buff_tmp;
 								goto common_operation_str_rfmt;
 							}
 							else if (_str_format[idx_rfmt] == 'u'){
 								format[idx_format] = _str_format[idx_rfmt];
-								llu = va_arg(ar, unsigned long long);
-								sprintf(buff_tmp, format, llu);
+								sprintf(buff_tmp, format, va_arg(ar, unsigned long long));
 								s = buff_tmp;
 								goto common_operation_str_rfmt;
 							}
@@ -2938,12 +2935,11 @@ char *stcp_http_content_generator(unsigned short _size_per_allocate, char *_str_
 						}
 						break;
 					case 'c':
-						c = (char)va_arg(ar, int);
 						if (result_size <= idx_result + 2){
 							result_size += _size_per_allocate;
 							buff_result = (char *) realloc(buff_result, result_size * sizeof(char));
 						}
-						buff_result[idx_result] = c;
+						buff_result[idx_result] = (char) va_arg(ar, int);;
 						buff_length = 1;
 						break;
 					default:
@@ -3012,14 +3008,6 @@ char *stcp_http_str_append(char *_buff_source,
 
 	va_list ar;
 	/* var list */
-	long long lli = 0;
-	unsigned long long llu = 0;
-	long li = 0;
-	unsigned long lu = 0;
-	int d = 0;
-	unsigned int i = 0;
-	char c = 0;
-	float f = 0.0;
 	char *s = NULL;
 
 	char collect_flag = 0x00;
@@ -3058,33 +3046,28 @@ char *stcp_http_str_append(char *_buff_source,
 						s = va_arg(ar, char *); 
 						goto common_operation_str_rfmt;
 					case 'd':
-						d = va_arg(ar, int);
-						sprintf(buff_tmp, format, d);
+						sprintf(buff_tmp, format, va_arg(ar, int));
 						s = buff_tmp;
 						goto common_operation_str_rfmt;
 					case 'i':
-						i = va_arg(ar, unsigned int);
-						sprintf(buff_tmp, format, i);
+						sprintf(buff_tmp, format, va_arg(ar, unsigned int));
 						s = buff_tmp;
 						goto common_operation_str_rfmt;
 					case 'f':
-						f = (float) va_arg(ar, double);
-						sprintf(buff_tmp, format, f);
+						sprintf(buff_tmp, format, (float) va_arg(ar, double));
 						s = buff_tmp;
 						goto common_operation_str_rfmt;
 					case 'l':
 						idx_rfmt++;
 						if (_str_format[idx_rfmt] == 'i'){
 							format[idx_format] = _str_format[idx_rfmt];
-							li = va_arg(ar, long);
-							sprintf(buff_tmp, format, li);
+							sprintf(buff_tmp, format, va_arg(ar, long));
 							s = buff_tmp;
 							goto common_operation_str_rfmt;
 						}
 						else if (_str_format[idx_rfmt] == 'u'){
 							format[idx_format] = _str_format[idx_rfmt];
-							lu = va_arg(ar, unsigned long);
-							sprintf(buff_tmp, format, lu);
+							sprintf(buff_tmp, format, va_arg(ar, unsigned long));
 							s = buff_tmp;
 							goto common_operation_str_rfmt;
 						}
@@ -3094,15 +3077,13 @@ char *stcp_http_str_append(char *_buff_source,
 							idx_rfmt++;
 							if (_str_format[idx_rfmt] == 'i'){
 								format[idx_format] = _str_format[idx_rfmt];
-								lli = va_arg(ar, long long);
-								sprintf(buff_tmp, format, lli);
+								sprintf(buff_tmp, format, va_arg(ar, long long));
 								s = buff_tmp;
 								goto common_operation_str_rfmt;
 							}
 							else if (_str_format[idx_rfmt] == 'u'){
 								format[idx_format] = _str_format[idx_rfmt];
-								llu = va_arg(ar, unsigned long long);
-								sprintf(buff_tmp, format, llu);
+								sprintf(buff_tmp, format, va_arg(ar, unsigned long long));
 								s = buff_tmp;
 								goto common_operation_str_rfmt;
 							}
@@ -3114,12 +3095,11 @@ char *stcp_http_str_append(char *_buff_source,
 						}
 						break;
 					case 'c':
-						c = (char)va_arg(ar, int);
 						if (result_size <= idx_result + 2){
 							result_size += _size_per_allocate;
 							buff_result = (char *) realloc(buff_result, result_size * sizeof(char));
 						}
-						buff_result[idx_result] = c;
+						buff_result[idx_result] = (char) va_arg(ar, int);;
 						buff_length = 1;
 						break;
 					default:
