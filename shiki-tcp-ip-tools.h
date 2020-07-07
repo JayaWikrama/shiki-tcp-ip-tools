@@ -93,6 +93,7 @@ typedef struct stcp_subhead_var{
     char *rcv_content;
     char *ipaddr;
     uint32_t content_length;
+    uint64_t partial_length;
     int8_t comm_protocol;
   };
 
@@ -170,7 +171,7 @@ int8_t stcp_http_webserver_set_content_type(stcpWHead *_stcpWH, char *_content_t
 int8_t stcp_http_webserver_set_accept(stcpWHead *_stcpWH, char *_accept);
 int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList _stcpWList);
 
-int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_header, char *_content_type, char *_acception_type, uint16_t _content_length);
+int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_header, char *_content_type, char *_acception_type, uint64_t _content_length);
 int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, stcpWHead *_stcpWH, char *_response_code, char *_file_name);
 void stcp_http_webserver_stop();
 #endif

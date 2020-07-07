@@ -794,6 +794,7 @@ static void stcp_http_webserver_bzero(stcpWInfo *_stcpWI, stcpWHead *_stcpWH){
     memset(&(_stcpWI->rcv_connection_type), 0x00, sizeof(_stcpWI->rcv_connection_type));
 
     _stcpWI->content_length = 0;
+    _stcpWI->partial_length = 0;
 }
 
 static void stcp_http_webserver_free(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList *_stcpWList){
@@ -891,6 +892,45 @@ static inline void stcp_http_webserver_print_segment(unsigned char *_header, stc
         free(buff);
         buff = NULL;
     }
+}
+
+static unsigned long long stcp_get_partial_length(char *_text_source){
+    char *buff_info;
+    do {
+        buff_info = (char *) malloc(17*sizeof(char));
+        if (buff_info == NULL){
+            #ifdef __STCP_DEBUG__
+            stcp_debug(__func__, "WARNING", "failed to allocate memory\n");
+            #endif
+            usleep(1000);
+        }
+    } while (buff_info == NULL);
+    char buff_data[10];
+    int16_t i=0;
+    for (i=0; i<(strlen(_text_source) - strlen("Range: bytes=")); i++){
+        memset(buff_info, 0x00, 17*sizeof(char));
+        int8_t j=0;
+        for (j=0; j<strlen("Range: bytes="); j++){
+            buff_info[j] = _text_source[i + j];
+        }
+        if (strcmp(buff_info, "Range: bytes=") == 0){
+            i = i + strlen("Range: bytes=");
+            memset(buff_data, 0x00, 7*sizeof(char));
+            int8_t j = 0;
+            for (j=0; j<9; j++){
+                if (j>0 && (_text_source[i + j] < '0' || _text_source[i + j] > '9')){
+                    free(buff_info);
+                    return (unsigned long long) atoll(buff_data);
+                }
+                else if (_text_source[i + j] >= '0' && _text_source[i + j] <= '9'){
+                    buff_data[j] = _text_source[i + j];
+                }
+            }
+        }
+    }
+    free(buff_info);
+    buff_info = NULL;
+    return 0;
 }
 
 void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
@@ -996,9 +1036,13 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
     _stcpWI->content_length = (uint32_t) stcp_get_content_length(_stcpWI->rcv_header);
 
     stcp_debug(__func__, "WEBSERVER INFO", "CONTENT LENGTH: %i\n", _stcpWI->content_length);
+
+    _stcpWI->partial_length = (uint64_t) stcp_get_partial_length(_stcpWI->rcv_header);
+
+    stcp_debug(__func__, "WEBSERVER INFO", "PARTIAL LENGTH: %i\n", _stcpWI->partial_length);
 }
 
-int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_header, char *_content_type, char *_acception_type, uint16_t _content_length){
+int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_header, char *_content_type, char *_acception_type, uint64_t _content_length){
     time_t stcp_time_access = 0;
     struct tm *tm_access = NULL;
     char *header_tmp = NULL;
@@ -1074,7 +1118,6 @@ int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_h
      "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n"
      "Content-Type: %s\r\n"
      "Server: stcp-webservice\r\n"
-     "Accept-Ranges: none\r\n"
      "Accept: %s\r\n"
      "Vary: Accept-Encoding\r\n",
      _response_header,
@@ -1480,7 +1523,7 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
     uint8_t try_times = 3;
 
     do{
-    	stcp_file = fopen(_file_name, "r");
+    	stcp_file = fopen(_file_name, "rb");
         try_times--;
     } while (stcp_file == NULL && try_times > 0);
 
@@ -1522,11 +1565,17 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
         return -2;
     }
 
-    uint32_t content_size = 0;
+    uint64_t content_size = 0;
+    int8_t closed_flag = 0;
     fseek(stcp_file, 0L, SEEK_END);
-    content_size = (uint32_t) ftell(stcp_file);
+    content_size = (uint64_t) ftell(stcp_file);
 
-    fseek(stcp_file, 0L, SEEK_SET);
+    if (_stcpWI->partial_length > 0){
+        fseek(stcp_file, (long) _stcpWI->partial_length, SEEK_SET);
+    }
+    else {
+        fseek(stcp_file, 0L, SEEK_SET);
+    }
 
     char content_type_file[strlen(_stcpWH->content_type) + 1];
     if (strstr(_file_name, ".css") != NULL){
@@ -1538,20 +1587,78 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
     else if (strstr(_file_name, ".mp4") != NULL){
         strcpy(content_type_file, "video/mp4");
     }
+    else if (strstr(_file_name, ".png") != NULL){
+        strcpy(content_type_file, "image/png");
+    }
+    else if (strstr(_file_name, ".jpg") != NULL){
+        strcpy(content_type_file, "image/jpg");
+    }
+    else if (strstr(_file_name, ".jpeg") != NULL){
+        strcpy(content_type_file, "image/jpeg");
+    }
+    else if (strstr(_file_name, ".bmp") != NULL){
+        strcpy(content_type_file, "image/bmp");
+    }
     else {
         strcpy(content_type_file, _stcpWH->content_type);
     }
 
-    if (stcp_http_webserver_generate_header(
-     _stcpWI,
-     _response_code,
-     content_type_file,
-     _stcpWH->accept_type,
-     content_size) != 0
+    if (strstr(_stcpWI->rcv_header, "Range: bytes=") == NULL){
+        if (stcp_http_webserver_generate_header(
+         _stcpWI,
+         _response_code,
+         content_type_file,
+         _stcpWH->accept_type,
+         content_size) != 0
+        ){
+            fclose(stcp_file);
+            stcp_file = NULL;
+            return -1;
+        }
+    }
+    else {
+        uint64_t partial_size = 1024000;
+        char spc_buff[64];
+        memset(spc_buff, 0x00, sizeof(spc_buff));
+        if (content_size - _stcpWI->partial_length < partial_size){
+            partial_size = content_size - _stcpWI->partial_length;
+            closed_flag = -1;
+        }
+        sprintf(spc_buff, "*/*\r\n"
+         "Content-Range: bytes %li-%li/%li",
+         _stcpWI->partial_length,
+         (_stcpWI->partial_length + partial_size - 1),
+         content_size
+        );
+        content_size = partial_size;
+        if (stcp_http_webserver_generate_header(
+         _stcpWI,
+         "206 Partial Content",
+         content_type_file,
+         spc_buff,
+         content_size) != 0
+        ){
+            fclose(stcp_file);
+            stcp_file = NULL;
+            return -1;
+        }
+    }
+
+    if (!_stcpWI->comm_protocol){
+        stcp_send_data(_init_data, (unsigned char *) _stcpWI->server_header, strlen(_stcpWI->server_header));
+    }
+    else {
+        #ifdef __STCP_SSL__
+            stcp_ssl_send_data(_init_data, (unsigned char *) _stcpWI->server_header, strlen(_stcpWI->server_header));
+        #endif
+    }
+
+    if (strncmp(content_type_file, "video/mp4", 9) == 0 && 
+     strstr(_stcpWI->rcv_header, "Range: bytes=") == NULL
     ){
         fclose(stcp_file);
         stcp_file = NULL;
-        return -1;
+        return 0;
     }
 
     unsigned char *file_content = NULL;
@@ -1565,18 +1672,9 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
         return -3;
     }
 
-    if (!_stcpWI->comm_protocol){
-        stcp_send_data(_init_data, (unsigned char *) _stcpWI->server_header, strlen(_stcpWI->server_header));
-    }
-    else {
-        #ifdef __STCP_SSL__
-            stcp_ssl_send_data(_init_data, (unsigned char *) _stcpWI->server_header, strlen(_stcpWI->server_header));
-        #endif
-    }
-
     uint32_t size_recv = 0;
     int8_t bytes = 0;
-    uint32_t total_size = 0;
+    uint64_t total_size = 0;
     unsigned char buff[2];
     while((bytes = fread((unsigned char *) buff, 1, 1, stcp_file) >= 0)){
 		total_size = total_size + 1;
@@ -1585,15 +1683,18 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
         if (size_recv == (stcp_setup_data.stcp_size_per_send * sizeof(char)) - 1 || bytes == 0){
             if (!_stcpWI->comm_protocol){
                 if (stcp_send_data(_init_data, file_content, size_recv) <= 0){
+                    closed_flag = -1;
                     break;
                 }
             }
             else {
                 #ifdef __STCP_SSL__
                     if (stcp_ssl_send_data(_init_data, file_content, size_recv) <= 0){
+                        closed_flag = -1;
                         break;
                     }
                 #else
+                    closed_flag = -1;
                     break;
                 #endif
             }
@@ -1607,15 +1708,18 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
             if (size_recv > 0){
                 if (!_stcpWI->comm_protocol){
                     if (stcp_send_data(_init_data, file_content, size_recv) <= 0){
+                        closed_flag = -1;
                         break;
                     }
                 }
                 else {
                     #ifdef __STCP_SSL__
                         if (stcp_ssl_send_data(_init_data, file_content, size_recv) <= 0){
+                            closed_flag = -1;
                             break;
                         }
                     #else
+                        closed_flag = -1;
                         break;
                     #endif
                 }
@@ -1631,7 +1735,8 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
     free(file_content);
     file_content = NULL;
     fclose(stcp_file);
-    return 0;
+    printf("closed_flad: %d\n", closed_flag);
+    return closed_flag;
 }
 
 static int8_t stcp_http_webserver_callback(
@@ -2273,6 +2378,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
                     }
                     close(init_data.connection_f);
                     init_data.connection_f = 0;
+                    keep_alive_cnt[idx_client] = 0;
                     stcp_debug(__func__, "WEBSERVER INFO", "one client connection \033[1;31m closed\033[0m (%d)\n", idx_client);
                 stcp_next:
                     client_fd[idx_client] = init_data.connection_f;
@@ -2680,7 +2786,7 @@ int32_t stcp_send_data(stcpSock _init_data, unsigned char* buff, int32_t size_se
         if (bytes_aviable > 0){
             gettimeofday(&tv, NULL);
             if ((uint16_t)(((tv.tv_sec%60)*1000 + tv.tv_usec/1000) - timeout_cstart) > timeout_cvalue){
-                stcp_debug(__func__, "WARNING", "send 0 data. request timeout\n");
+                stcp_debug(__func__, "WARNING", "send 0 data. request timeout (0)\n");
                 return -1;
             }
         }
@@ -2689,7 +2795,7 @@ int32_t stcp_send_data(stcpSock _init_data, unsigned char* buff, int32_t size_se
     bytes = (int32_t) write(_init_data.connection_f, buff, size_set*sizeof(char));
     if (bytes >= 0) stcp_debug(__func__, "INFO", "success to send %d data\n", bytes);
     else if (stcp_setup_data.stcp_timeout_sec > 0 || stcp_setup_data.stcp_timeout_millisec > 0){
-        stcp_debug(__func__, "WARNING", "send %d data. request timeout\n", bytes);
+        stcp_debug(__func__, "WARNING", "send %d data. request timeout (1)\n", bytes);
     }
     else {
         stcp_debug(__func__, "WARNING", "request timeout\n");
