@@ -133,6 +133,11 @@ inline void stcp_debug(const char *function_name, char *debug_type, char *debug_
                  d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec,
                  msec, debug_type, function_name
                 );
+            else if (strcmp(debug_type, "VERSION")==0)
+                printf("%02d-%02d-%04d %02d:%02d:%02d.%03d\033[0;34m STCP\033[1;32m %s\033[0m %s: ",
+                 d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec,
+                 msec, debug_type, function_name
+                );
             else if (strcmp(debug_type, "WEBSERVER INFO")==0)
                 printf("%02d-%02d-%04d %02d:%02d:%02d.%03d\033[0;34m STCP\033[1;32m %s\033[0m %s: ",
                  d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec,
@@ -167,14 +172,19 @@ inline void stcp_debug(const char *function_name, char *debug_type, char *debug_
     }
 }
 
-static int8_t stcp_connect_with_timeout (int stcp_socket_f, struct sockaddr * addr, size_t addrlen, struct timeval * stcp_timeout) {
-	int8_t retval = 0x00;
+static int8_t stcp_connect_with_timeout (
+ int stcp_socket_f,
+ struct sockaddr * addr,
+ size_t addrlen,
+ struct timeval * stcp_timeout
+){
+	int retval = 0;
     int fcntl_flags = 0;
 	if ((fcntl_flags = fcntl (stcp_socket_f, F_GETFL, NULL)) < 0) {
-		return -1;
+		return 0x01;
 	}
 	if (fcntl (stcp_socket_f, F_SETFL, fcntl_flags | O_NONBLOCK) < 0) {
-		return -1;
+		return 0x01;
 	}
 	if ((retval = connect (stcp_socket_f, addr, addrlen)) < 0) {
 		if (errno == EINPROGRESS) {
@@ -189,41 +199,38 @@ static int8_t stcp_connect_with_timeout (int stcp_socket_f, struct sockaddr * ad
 	}
 
 	if (fcntl (stcp_socket_f, F_SETFL, fcntl_flags) < 0) {
-		return -1;
+		return 0x01;
 	}
 
 	if (retval < 0) {
-		return -1;
+		return 0x01;
 	}
 	else if (retval == 0) {
 		errno = ETIMEDOUT;
-		return 1;
+		return 0x01;
 	}
 	else {
 		socklen_t len = sizeof (fcntl_flags);
 		if (getsockopt (stcp_socket_f, SOL_SOCKET, SO_ERROR, &fcntl_flags, &len) < 0) {
-			return -1;
+			return 0x01;
 		}
 		if (fcntl_flags) {
 			errno = fcntl_flags;
-			return -1;
+			return 0x01;
 		}
 	}
-	return 0;
+	return 0x00;
 }
 
 static int8_t stcp_check_ip(char *_ip_address){
     /* check length */
     if (strlen(_ip_address) > 15){
-        return -1;
+        return 0x01;
     }
     /* check point and value per point */
     int8_t point_counter = 0;
     int8_t aviable_value_per_point[4];
-    aviable_value_per_point[0] = 0;
-    aviable_value_per_point[1] = 0;
-    aviable_value_per_point[2] = 0;
-    aviable_value_per_point[3] = 0;
+    memset(aviable_value_per_point, 0x00, sizeof(aviable_value_per_point));
     int i = 0;
     for (i=0; i < (int) strlen(_ip_address); i++){
         if(_ip_address[i] == '.'){
@@ -233,25 +240,25 @@ static int8_t stcp_check_ip(char *_ip_address){
             aviable_value_per_point[point_counter]++;
         }
         else {
-            return -2;
+            return 0x02;
         }
     }
     if (point_counter != 3){
-        return -2;
+        return 0x02;
     }
     if (aviable_value_per_point[0] == 0 ||
      aviable_value_per_point[1] == 0 ||
      aviable_value_per_point[2] == 0 ||
      aviable_value_per_point[3] == 0
     ){
-        return -3;
+        return 0x03;
     }
     if (aviable_value_per_point[0] > 3 ||
      aviable_value_per_point[1] > 3 ||
      aviable_value_per_point[2] > 3 ||
      aviable_value_per_point[3] > 3
     ){
-        return -3;
+        return 0x03;
     }
     return 0;
 }
@@ -259,9 +266,9 @@ static int8_t stcp_check_ip(char *_ip_address){
 long stcp_get_version(char *_version){
     strcpy(_version, STCP_VER);
     long version_in_long = 0;
-    uint8_t idx_ver = 0;
-    uint8_t multiplier = 10;
-    while(idx_ver < 13){
+    uint8_t idx_ver = 0x00;
+    uint8_t multiplier = 0x0a;
+    while(idx_ver < 0x0d){
         if(STCP_VER[idx_ver] != '.' && STCP_VER[idx_ver] != 0x00){
             if (version_in_long == 0){
                 version_in_long = STCP_VER[idx_ver] - '0';
@@ -288,7 +295,7 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
             #ifdef __STCP_DEBUG_SETUP__
             stcp_debug(__func__, "WARNING", "invalid value\n");
             #endif
-            return -1;
+            return 0x01;
         }
         stcp_setup_data.stcp_timeout_sec = (uint16_t)_value;
     }
@@ -297,7 +304,7 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
             #ifdef __STCP_DEBUG_SETUP__
             stcp_debug(__func__, "WARNING", "invalid value\n");
             #endif
-            return -1;
+            return 0x01;
         }
         stcp_setup_data.stcp_timeout_millisec = (uint16_t)_value;
     }
@@ -306,7 +313,7 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
             #ifdef __STCP_DEBUG_SETUP__
             stcp_debug(__func__, "WARNING", "invalid value\n");
             #endif
-            return -1;
+            return 0x01;
         }
         stcp_setup_data.stcp_keepalive_sec = (uint16_t)_value;
     }
@@ -315,7 +322,7 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
             #ifdef __STCP_DEBUG_SETUP__
             stcp_debug(__func__, "WARNING", "invalid value\n");
             #endif
-            return -1;
+            return 0x01;
         }
         stcp_setup_data.stcp_keepalive_millisec = (uint16_t)_value;
     }
@@ -327,7 +334,7 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
             #ifdef __STCP_DEBUG_SETUP__
             stcp_debug(__func__, "WARNING", "wrong value\n");
             #endif
-            return -1;
+            return 0x01;
         }
     }
     else if(_setup_parameter == STCP_SET_SIZE_PER_RECV){
@@ -344,7 +351,7 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
             #ifdef __STCP_DEBUG_SETUP__
             stcp_debug(__func__, "WARNING", "wrong value\n");
             #endif
-            return -1;
+            return 0x01;
         }
     }
     #ifdef __STCP_WEBSERVER__
@@ -358,7 +365,7 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
             #ifdef __STCP_DEBUG_SETUP__
             stcp_debug(__func__, "WARNING", "wrong value\n");
             #endif
-            return -1;
+            return 0x01;
         }
     }
     #endif
@@ -367,9 +374,9 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
         #ifdef __STCP_DEBUG_SETUP__
         stcp_debug(__func__, "WARNING", "wrong parameters\n");
         #endif
-        return -1;
+        return 0x01;
     }
-    return 0;
+    return 0x00;
 }
 
 #ifdef __STCP_SSL__
@@ -378,7 +385,7 @@ int8_t stcp_ssl_add_certkey(stcp_ssl_certkey_type _type, char *_host, char *_cer
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "WARNING", "wrong parameters\n");
         #endif
-        return -1;
+        return 0x01;
     }
     char buffkey[15 + strlen(_host)];
     memset(buffkey, 0x00, sizeof(buffkey));
@@ -410,7 +417,7 @@ int8_t stcp_ssl_add_certkey(stcp_ssl_certkey_type _type, char *_host, char *_cer
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "INFO", "certkey for %s have been added. process aborted\n", _host);
         #endif
-        return 1;
+        return 0x01;
     }
     SHLinkCustomData certkey_additional_data;
     if (shilink_fill_custom_data(
@@ -424,15 +431,15 @@ int8_t stcp_ssl_add_certkey(stcp_ssl_certkey_type _type, char *_host, char *_cer
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to fill data\n");
         #endif
-        return -2;
+        return 0x02;
     }
     if (shilink_append(&stcp_certkey_collection, certkey_additional_data) != 0){
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to insert data\n");
         #endif
-        return -3;
+        return 0x03;
     }
-    return 0;
+    return 0x00;
 }
 
 int8_t stcp_ssl_remove_certkey(stcp_ssl_certkey_type _type, char *_host, char *_certkey){
@@ -440,7 +447,7 @@ int8_t stcp_ssl_remove_certkey(stcp_ssl_certkey_type _type, char *_host, char *_
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "WARNING", "wrong parameters\n");
         #endif
-        return -1;
+        return 0x01;
     }
     char buffkey[15 + strlen(_host)];
     memset(buffkey, 0x00, sizeof(buffkey));
@@ -472,7 +479,7 @@ int8_t stcp_ssl_remove_certkey(stcp_ssl_certkey_type _type, char *_host, char *_
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "INFO", "certkey for %s not exist\n", _host);
         #endif
-        return 1;
+        return 0x01;
     }
     SHLinkCustomData certkey_additional_data;
     if (shilink_fill_custom_data(
@@ -486,13 +493,13 @@ int8_t stcp_ssl_remove_certkey(stcp_ssl_certkey_type _type, char *_host, char *_
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to fill data\n");
         #endif
-        return -2;
+        return 0x02;
     }
     if (shilink_delete(&stcp_certkey_collection, certkey_additional_data) != 0){
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to insert data\n");
         #endif
-        return -3;
+        return 0x03;
     }
     return 0;
 }
@@ -616,30 +623,33 @@ int8_t stcp_set_download_file_name(char* _file_name){
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "WARNING", "file name to long. max:%d character\n", STCP_MAX_LENGTH_FILE_NAME);
         #endif
-        return -1;
+        return 0x01;
     }
     strcpy(stcp_file_name, _file_name);
-    return 0;
+    return 0x00;
 }
 
 stcpSock stcp_server_init(char *ADDRESS, uint16_t PORT){
     stcpSock init_data;
+    init_data.socket_f = 0;
+    init_data.connection_f = 0;
     socklen_t len;
-    int8_t retval = 0;
+    int8_t retval = 0x00;
     struct sockaddr_in servaddr, cli;
     do{
         init_data.socket_f = socket(AF_INET, SOCK_STREAM, 0); 
         if (init_data.socket_f == -1) {
             stcp_debug(__func__, "CRITICAL", "socket creation failed...\n");
-            retval = init_data.socket_f;
+            retval = 0x01;
         }
         else{
+            retval = 0x00;
             stcp_debug(__func__, "INFO", "Socket successfully created : %d\n", init_data.socket_f);
             memset(&servaddr, 0x00, sizeof(servaddr));
             servaddr.sin_family = AF_INET;
-            servaddr.sin_port = htons(PORT);
+            servaddr.sin_port = (in_port_t) htons(PORT);
             if(stcp_check_ip(ADDRESS) != 0){
-                struct hostent *host;
+                struct hostent *host = NULL;
                 host = gethostbyname(ADDRESS);
                 if (host != NULL){
                     servaddr.sin_addr.s_addr = inet_addr(inet_ntoa(*((struct in_addr*) host->h_addr_list[0])));
@@ -660,7 +670,7 @@ stcpSock stcp_server_init(char *ADDRESS, uint16_t PORT){
             if ((bind(init_data.socket_f, (SA*)&servaddr, sizeof(servaddr))) != 0) { 
                 stcp_debug(__func__, "CRITICAL", "socket bind failed...\n");
                 if (stcp_setup_data.stcp_retry_mode == 1) stcp_debug(__func__, "INFO", "trying to create a socket...\n");
-                retval = -2; 
+                retval = 0x02; 
                 close(init_data.socket_f);
                 init_data.socket_f = 0;
                 sleep(1);
@@ -670,7 +680,7 @@ stcpSock stcp_server_init(char *ADDRESS, uint16_t PORT){
 
                 if ((listen(init_data.socket_f, 5)) != 0) { 
                     stcp_debug(__func__, "CRITICAL", "Listen failed...\n");
-                    retval = -3;
+                    retval = 0x03;
                     close(init_data.socket_f);
                     init_data.socket_f = 0;
                 }
@@ -682,7 +692,7 @@ stcpSock stcp_server_init(char *ADDRESS, uint16_t PORT){
 
                     if (init_data.connection_f < 0) { 
                         stcp_debug(__func__, "CRITICAL", "server acccept failed...\n"); 
-                        retval = -4;
+                        retval = 0x04;
                     }
                     else{
                         stcp_debug(__func__, "INFO", "server acccept the client...\n");
@@ -696,7 +706,7 @@ stcpSock stcp_server_init(char *ADDRESS, uint16_t PORT){
                 }
             }
         }
-    } while (retval < 0 && stcp_setup_data.stcp_retry_mode == INFINITE_RETRY);
+    } while (retval && stcp_setup_data.stcp_retry_mode == INFINITE_RETRY);
     return init_data;
 }
 
@@ -762,7 +772,7 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
     *_stcpWI = stcpWI;
     *_stcpWH = stcpWH;
 
-    return 0;
+    return 0x00;
 
     stcp_err_5:
         free(stcpWH.content_type);
@@ -779,7 +789,7 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
     stcp_err_1:
         free(stcpWI.server_header);
         stcpWI.server_header = NULL;
-        return -1;
+        return 0x01;
 }
 
 static void stcp_http_webserver_bzero(stcpWInfo *_stcpWI, stcpWHead *_stcpWH){
@@ -831,8 +841,15 @@ static void stcp_http_webserver_free(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stc
     *_stcpWList = NULL;
 }
 
-static void stcp_http_webserver_header_segment(unsigned char *_source_text, unsigned char *_specific_word, uint16_t *_pos, uint16_t *_size, unsigned char _end_code, int8_t _mode){
-    uint16_t len_buff = strlen((char *) _source_text);
+static void stcp_http_webserver_header_segment(
+ unsigned char *_source_text,
+ unsigned char *_specific_word,
+ uint16_t *_pos,
+ uint16_t *_size,
+ unsigned char _end_code,
+ int8_t _mode
+){
+    uint16_t len_buff = (uint16_t) strlen((char *) _source_text);
     unsigned char buff_tmp[strlen((char *) _specific_word) + 3];
     uint16_t idx_char = 0;
     uint16_t content_size = 0;
@@ -877,30 +894,13 @@ static inline void stcp_http_webserver_print_segment(unsigned char *_header, stc
     if (_segmen_data.stcp_sub_size == 0){
         stcp_debug(__func__, "WEBSERVER INFO", "%s: (null)\n", _description);
     }
-    else if (_segmen_data.stcp_sub_size < 64){
-        char buff[_segmen_data.stcp_sub_size + 1];
-        memset(buff, 0x00, sizeof(buff));
-        memcpy(buff, _header + _segmen_data.stcp_sub_pos, _segmen_data.stcp_sub_size);
-        stcp_debug(__func__, "WEBSERVER INFO", "%s: %s\n", _description, buff);
-    }
-    else {
-        char *buff = NULL;
-        buff = (char *) malloc((_segmen_data.stcp_sub_size + 1) * sizeof(char));
-        if (buff == NULL){
-            stcp_debug(__func__, "ERROR", "failed to allocate memory\n");
-            return;
-        } 
-        memset(buff, 0x00, (_segmen_data.stcp_sub_size + 1) * sizeof(char));
-        memcpy(buff, _header + _segmen_data.stcp_sub_pos, _segmen_data.stcp_sub_size);
-        stcp_debug(__func__, "WEBSERVER INFO", "%s: \n", _description);
-        printf("%s\n", buff);
-        free(buff);
-        buff = NULL;
-    }
+    write(STDOUT_FILENO, _header + _segmen_data.stcp_sub_pos, _segmen_data.stcp_sub_size);
+    putchar(0x0d);
+    putchar(0x0a);
 }
 
 static unsigned long long stcp_get_partial_length(char *_text_source){
-    char *buff_info;
+    char *buff_info = NULL;
     do {
         buff_info = (char *) malloc(17*sizeof(char));
         if (buff_info == NULL){
@@ -1047,7 +1047,13 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
     stcp_debug(__func__, "WEBSERVER INFO", "PARTIAL LENGTH: %i\n", _stcpWI->partial_length);
 }
 
-int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_header, char *_content_type, char *_acception_type, uint64_t _content_length){
+int8_t stcp_http_webserver_generate_header(
+ stcpWInfo *_stcpWI,
+ char *_response_header,
+ char *_content_type,
+ char *_acception_type,
+ uint64_t _content_length
+){
     time_t stcp_time_access = 0;
     struct tm *tm_access = NULL;
     char *header_tmp = NULL;
@@ -1132,7 +1138,7 @@ int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_h
     );
     if (header_tmp == NULL){
         stcp_debug(__func__, "ERROR", "failed to generate webserver header\n");
-        return -1;
+        return 0x01;
     }
     if (_content_length > 0){
         header_tmp = (char *) stcp_http_str_append(header_tmp,
@@ -1166,10 +1172,14 @@ int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_h
     free(header_tmp);
     header_tmp = NULL;
 
-    return 0;
+    return 0x00;
 }
 
-int8_t stcp_http_webserver_add_negative_code_response(stcpWList *_stcpWList, stcp_webserver_negative_code _code_param, char *_response_content){
+int8_t stcp_http_webserver_add_negative_code_response(
+ stcpWList *_stcpWList,
+ stcp_webserver_negative_code _code_param,
+ char *_response_content
+){
     SHLinkCustomData _data;
     char data_key[4];
     if (_code_param == STCP_401_UNAUTHOIZED){
@@ -1185,7 +1195,7 @@ int8_t stcp_http_webserver_add_negative_code_response(stcpWList *_stcpWList, stc
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "invalid parameters\n");
         #endif
-        return -1;
+        return 0x01;
     }
     if(shilink_fill_custom_data(
      &_data,
@@ -1198,19 +1208,24 @@ int8_t stcp_http_webserver_add_negative_code_response(stcpWList *_stcpWList, stc
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to add response (1)\n");
         #endif
-        return -2;
+        return 0x02;
     }
     if (shilink_append(_stcpWList, _data) != 0){
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to add response (2)\n");
         #endif
         shilink_free_custom_data(&_data);
-        return -2;
+        return 0x02;
     }
-    return 0;
+    return 0x00;
 }
 
-int8_t stcp_http_webserver_add_response(stcpWList *_stcpWList, char *_end_point, char *_response_content, char *_request_method){
+int8_t stcp_http_webserver_add_response(
+ stcpWList *_stcpWList,
+ char *_end_point,
+ char *_response_content,
+ char *_request_method
+){
     SHLinkCustomData _data;
     char data_key[strlen(_end_point) + strlen(_request_method) + 1];
     memset(data_key, 0x00, sizeof(data_key));
@@ -1226,19 +1241,24 @@ int8_t stcp_http_webserver_add_response(stcpWList *_stcpWList, char *_end_point,
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to add response (1)\n");
         #endif
-        return -1;
+        return 0x01;
     }
     if (shilink_append(_stcpWList, _data) != 0){
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to add response (2)\n");
         #endif
         shilink_free_custom_data(&_data);
-        return -1;
+        return 0x01;
     }
-    return 0;
+    return 0x00;
 }
 
-int8_t stcp_http_webserver_add_response_file(stcpWList *_stcpWList, char *_end_point, char *_response_file, char *_request_method){
+int8_t stcp_http_webserver_add_response_file(
+ stcpWList *_stcpWList,
+ char *_end_point,
+ char *_response_file,
+ char *_request_method
+){
     SHLinkCustomData _data;
     char data_key[strlen(_end_point) + strlen(_request_method) + 1];
     char data_value[strlen(_response_file) + 11];
@@ -1257,19 +1277,24 @@ int8_t stcp_http_webserver_add_response_file(stcpWList *_stcpWList, char *_end_p
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to add response (1)\n");
         #endif
-        return -1;
+        return 0x01;
     }
     if (shilink_append(_stcpWList, _data) != 0){
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to add response (2)\n");
         #endif
         shilink_free_custom_data(&_data);
-        return -1;
+        return 0x01;
     }
-    return 0;
+    return 0x00;
 }
 
-int8_t stcp_http_webserver_add_response_function(stcpWList *_stcpWList, char *_end_point, char *_response_function, char *_request_method){
+int8_t stcp_http_webserver_add_response_function(
+ stcpWList *_stcpWList,
+ char *_end_point,
+ char *_response_function,
+ char *_request_method
+){
     SHLinkCustomData _data;
     char data_key[strlen(_end_point) + strlen(_request_method) + 1];
     char data_value[strlen(_response_function) + 11];
@@ -1288,19 +1313,24 @@ int8_t stcp_http_webserver_add_response_function(stcpWList *_stcpWList, char *_e
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to add response (1)\n");
         #endif
-        return -1;
+        return 0x01;
     }
     if (shilink_append(_stcpWList, _data) != 0){
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to add response (2)\n");
         #endif
         shilink_free_custom_data(&_data);
-        return -1;
+        return 0x01;
     }
-    return 0;
+    return 0x00;
 }
 
-int8_t stcp_http_webserver_add_response_callback(stcpWList *_stcpWList, char *_end_point, void *_response_function, char *_request_method){
+int8_t stcp_http_webserver_add_response_callback(
+ stcpWList *_stcpWList,
+ char *_end_point,
+ void *_response_function,
+ char *_request_method
+){
     SHLinkCustomData _data;
     char data_key[strlen(_end_point) + strlen(_request_method) + 1];
     char data_value[10 + sizeof(void *)];
@@ -1320,16 +1350,16 @@ int8_t stcp_http_webserver_add_response_callback(stcpWList *_stcpWList, char *_e
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to add response (1)\n");
         #endif
-        return -1;
+        return 0x01;
     }
     if (shilink_append(_stcpWList, _data) != 0){
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to add response (2)\n");
         #endif
         shilink_free_custom_data(&_data);
-        return -1;
+        return 0x01;
     }
-    return 0;
+    return 0x00;
 }
 
 char *stcp_http_webserver_select_response(stcpWInfo *_stcpWI, stcpWList _stcpWList, char *_respons_code){
@@ -1511,16 +1541,21 @@ char *stcp_http_webserver_select_response(stcpWInfo *_stcpWI, stcpWList _stcpWLi
 int8_t stcp_http_webserver_set_content_type(stcpWHead *_stcpWH, char *_content_type){
     _stcpWH->content_type = (char *) realloc(_stcpWH->content_type, (strlen(_content_type) + 1)*sizeof(char));
     strcpy(_stcpWH->content_type, _content_type);
-    return 0;
+    return 0x00;
 }
 
 int8_t stcp_http_webserver_set_accept(stcpWHead *_stcpWH, char *_accept){
     _stcpWH->accept_type = (char *) realloc(_stcpWH->accept_type, (strlen(_accept) + 1)*sizeof(char));
     strcpy(_stcpWH->accept_type, _accept);
-    return 0;
+    return 0x00;
 }
 
-int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, stcpWHead *_stcpWH, char *_response_code, char *_file_name){
+int8_t stcp_http_webserver_send_file(stcpSock _init_data,
+ stcpWInfo *_stcpWI,
+ stcpWHead *_stcpWH,
+ char *_response_code,
+ char *_file_name
+){
     #ifdef __STCP_DEBUG__
     stcp_debug(__func__, "INFO", "file name: %s\n", _file_name);
     #endif
@@ -1543,7 +1578,7 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
          _stcpWH->accept_type,
          11) != 0
         ){
-            return -1;
+            return (int8_t) -1;
         }
         char *buffer_info;
 
@@ -1555,7 +1590,7 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
             #ifdef __STCP_DEBUG__
             stcp_debug(__func__, "ERROR", "failed to generate webserver content\n");
             #endif
-            return -1;
+            return (int8_t) -1;
         }
         if (!_stcpWI->comm_protocol){
             stcp_send_data(_init_data, (unsigned char *) buffer_info, strlen(buffer_info));
@@ -1567,11 +1602,11 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
         }
         free(buffer_info);
         buffer_info = NULL;
-        return -2;
+        return (int8_t) -2;
     }
 
     uint64_t content_size = 0;
-    int8_t closed_flag = 0;
+    int8_t closed_flag = 0x00;
     fseek(stcp_file, 0L, SEEK_END);
     content_size = (uint64_t) ftell(stcp_file);
 
@@ -1618,7 +1653,7 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
         ){
             fclose(stcp_file);
             stcp_file = NULL;
-            return -1;
+            return (int8_t) -1;
         }
     }
     else {
@@ -1627,7 +1662,7 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
         memset(spc_buff, 0x00, sizeof(spc_buff));
         if (content_size - _stcpWI->partial_length < partial_size){
             partial_size = content_size - _stcpWI->partial_length;
-            closed_flag = -1;
+            closed_flag = (int8_t) -1;
         }
         sprintf(spc_buff, "*/*\r\n"
          "Content-Range: bytes %li-%li/%li",
@@ -1645,7 +1680,7 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
         ){
             fclose(stcp_file);
             stcp_file = NULL;
-            return -1;
+            return (int8_t) -1;
         }
     }
 
@@ -1658,14 +1693,6 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
         #endif
     }
 
-    if (strncmp(content_type_file, "video/mp4", 9) == 0 && 
-     strstr(_stcpWI->rcv_header, "Range: bytes=") == NULL
-    ){
-        fclose(stcp_file);
-        stcp_file = NULL;
-        return 0;
-    }
-
     unsigned char *file_content = NULL;
     file_content = (unsigned char *) malloc(stcp_setup_data.stcp_size_per_send * sizeof(char));
     if (file_content == NULL){
@@ -1674,11 +1701,11 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
         #endif
         fclose(stcp_file);
         stcp_file = NULL;
-        return -3;
+        return (int8_t) -3;
     }
 
     uint32_t size_recv = 0;
-    int8_t bytes = 0;
+    size_t bytes = 0;
     uint64_t total_size = 0;
     unsigned char buff[2];
     while((bytes = fread((unsigned char *) buff, 1, 1, stcp_file) >= 0)){
@@ -1688,18 +1715,18 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
         if (size_recv == (stcp_setup_data.stcp_size_per_send * sizeof(char)) - 1 || bytes == 0){
             if (!_stcpWI->comm_protocol){
                 if (stcp_send_data(_init_data, file_content, size_recv) <= 0){
-                    closed_flag = -1;
+                    closed_flag = (int8_t) -1;
                     break;
                 }
             }
             else {
                 #ifdef __STCP_SSL__
                     if (stcp_ssl_send_data(_init_data, file_content, size_recv) <= 0){
-                        closed_flag = -1;
+                        closed_flag = (int8_t) -1;
                         break;
                     }
                 #else
-                    closed_flag = -1;
+                    closed_flag = (int8_t) -1;
                     break;
                 #endif
             }
@@ -1713,18 +1740,18 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
             if (size_recv > 0){
                 if (!_stcpWI->comm_protocol){
                     if (stcp_send_data(_init_data, file_content, size_recv) <= 0){
-                        closed_flag = -1;
+                        closed_flag = (int8_t) -1;
                         break;
                     }
                 }
                 else {
                     #ifdef __STCP_SSL__
                         if (stcp_ssl_send_data(_init_data, file_content, size_recv) <= 0){
-                            closed_flag = -1;
+                            closed_flag = (int8_t) -1;
                             break;
                         }
                     #else
-                        closed_flag = -1;
+                        closed_flag = (int8_t) -1;
                         break;
                     #endif
                 }
@@ -1751,15 +1778,22 @@ static int8_t stcp_http_webserver_callback(
  stcpWHead *_stcpWH,
  stcpWList _stcpWList
 ){
-    int8_t retval = -1;
+    int8_t retval = (int8_t) -1;
     (*_function) (_init_data, _stcpWI, _stcpWH, _stcpWList, &retval);
     return retval;
 }
 
-int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList _stcpWList){
+int8_t stcp_http_webserver(
+ char *ADDRESS,
+ uint16_t PORT,
+ uint16_t MAX_CLIENT,
+ stcpWInfo *_stcpWI,
+ stcpWHead *_stcpWH,
+ stcpWList _stcpWList
+){
     if (stcp_webserver_init_state == 0){
         stcp_debug(__func__, "ERROR", "web server not ready\n");
-        return -1;
+        return 0x01;
     }
 
     /* check address & protocol*/
@@ -1773,7 +1807,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
         stcp_debug(__func__, "ERROR", "failed to allocate address memory\n");
         #endif
         stcp_http_webserver_free(_stcpWI, _stcpWH, &_stcpWList);
-        return -1;
+        return 0x01;
     }
 
     memset(used_address, 0x00, (strlen(ADDRESS) + 1) * sizeof(char));
@@ -1786,7 +1820,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
         #ifndef __STCP_SSL__
             stcp_debug(__func__, "ERROR", "please define __STCP_SSL__ first\n");
             stcp_http_webserver_free(_stcpWI, _stcpWH, &_stcpWList);
-            return -1;
+            return 0x01;
         #endif
     }
     else {
@@ -1820,7 +1854,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
         free(used_address);
         used_address = NULL;
         init_data.socket_f = -1;
-        return -1;
+        return 0x01;
     }
     socklen_t len;
     struct sockaddr_in servaddr, cli;
@@ -1832,14 +1866,14 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
         free(buffer);
         used_address = NULL;
         buffer = NULL;
-        return -1;
+        return 0x00;
     }
     stcp_debug(__func__, "INFO", "Socket successfully created : %d\n", init_data.socket_f);
     memset(&servaddr, 0x00, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(PORT);
+    servaddr.sin_port = (in_port_t) htons(PORT);
     if(stcp_check_ip(used_address) != 0){
-        struct hostent *host;
+        struct hostent *host = NULL;
         host = gethostbyname(used_address);
         if (host != NULL){
             servaddr.sin_addr.s_addr = inet_addr(inet_ntoa(*((struct in_addr*) host->h_addr_list[0])));
@@ -1855,7 +1889,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
             free(buffer);
             used_address = NULL;
             buffer = NULL;
-            return -2;
+            return 0x02;
         }
     }
     else {
@@ -1876,17 +1910,17 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
         stcp_http_webserver_free(_stcpWI, _stcpWH, &_stcpWList);
         free(buffer);
         buffer = NULL;
-        return -2;
+        return 0x02;
     }
     stcp_debug(__func__, "INFO", "Socket successfully binded..\n");
-    if ((listen(init_data.socket_f, 5)) != 0) { 
+    if ((listen(init_data.socket_f, (int) MAX_CLIENT)) != 0) { 
         stcp_debug(__func__, "CRITICAL", "Listen failed...\n");
         close(init_data.socket_f);
         init_data.socket_f = 0;
         stcp_http_webserver_free(_stcpWI, _stcpWH, &_stcpWList);
         free(buffer);
         buffer = NULL;
-        return -2;
+        return 0x02;
     }
     if (!_stcpWI->comm_protocol){
         stcp_debug(__func__, "WEBSERVER INFO", "Server listening..\n"); 
@@ -2410,7 +2444,7 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
     buffer = NULL;
     stcp_server_state = STCP_SERVER_STOPED;
     stcp_debug(__func__, "WEBSERVER INFO", "server terminated!\n");
-    return 0;
+    return 0x00;
 }
 
 void stcp_http_webserver_stop(){
@@ -2687,10 +2721,10 @@ static int8_t stcp_socket_send_file(stcpSock _init_data, char *_file_name, int8_
     #endif
 
     FILE *stcp_file = NULL;
-    uint8_t try_times = 3;
+    uint8_t try_times = 0x03;
 
     do{
-    	stcp_file = fopen(_file_name, "r");
+    	stcp_file = fopen(_file_name, "rb");
         try_times--;
     } while (stcp_file == NULL && try_times > 0);
 
@@ -2698,7 +2732,7 @@ static int8_t stcp_socket_send_file(stcpSock _init_data, char *_file_name, int8_
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to open \"%s\"\n", _file_name);
         #endif
-        return -1;
+        return 0x01;
     }
 
     long content_size = 0;
@@ -2715,11 +2749,11 @@ static int8_t stcp_socket_send_file(stcpSock _init_data, char *_file_name, int8_
         #endif
         fclose(stcp_file);
         stcp_file = NULL;
-        return -2;
+        return 0x02;
     }
 
     uint32_t size_recv = 0;
-    int8_t bytes = 0;
+    size_t bytes = 0;
     long total_size = 0;
     unsigned char buff[2];
     while((bytes = (int8_t) fread((unsigned char *) buff, 1, 1, stcp_file) >= 0)){
@@ -2778,7 +2812,7 @@ static int8_t stcp_socket_send_file(stcpSock _init_data, char *_file_name, int8_
     file_content = NULL;
     fclose(stcp_file);
     stcp_file = NULL;
-    return 0;
+    return 0x00;
 }
 
 int32_t stcp_send_data(stcpSock _init_data, unsigned char* buff, int32_t size_set){
@@ -2900,18 +2934,18 @@ int8_t stcp_url_parser(char *_url, int8_t *_protocol, stcpSHead *_host, stcpSHea
             #ifdef __STCP_DEBUG__
             stcp_debug(__func__, "ERROR", "failed to allocate buff valriable memory\n");
             #endif
-            return -1;
+            return 0x01;
         }
         uint16_t idx_char_url = 0;
         uint16_t idx_char_buff = 0;
         memset(buff, 0x00, 9*sizeof(char));
         if (strncmp(_url, "http://", 7) == 0){
-            *_protocol = 0;
+            *_protocol = 0x00;
             *_port = 80;
             idx_char_url = 7;
         }
         else {
-            *_protocol = 1;
+            *_protocol = 0x01;
             *_port = 443;
             idx_char_url = 8;
         }
@@ -2928,7 +2962,7 @@ int8_t stcp_url_parser(char *_url, int8_t *_protocol, stcpSHead *_host, stcpSHea
         if (_url[idx_char_url] == 0x00){
             free(buff);
             buff = NULL;
-            return 0;
+            return 0x00;
         }
         if (_url[idx_char_url] == ':'){
             idx_char_url++;
@@ -2943,7 +2977,7 @@ int8_t stcp_url_parser(char *_url, int8_t *_protocol, stcpSHead *_host, stcpSHea
         if (_url[idx_char_url] == 0x00){
             free(buff);
             buff = NULL;
-            return 0;
+            return 0x00;
         }
         sub_tmp.stcp_sub_pos = idx_char_url;
         sub_tmp.stcp_sub_size = 0;
@@ -2959,9 +2993,9 @@ int8_t stcp_url_parser(char *_url, int8_t *_protocol, stcpSHead *_host, stcpSHea
     }
     else {
         stcp_debug(__func__, "ERROR", "undefined protocol (http/https - select one)\n");
-        return -1;
+        return 0x01;
     }
-    return 0;
+    return 0x00;
 }
 
 char *stcp_http_content_generator(unsigned short _size_per_allocate, char *_str_format, ...){
@@ -3423,7 +3457,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
     long request_length = 0;
     if (_request_type != STCP_REQ_UPLOAD_FILE){
         if (_content != NULL){
-            request_length = strlen(_content);
+            request_length = (long) strlen(_content);
         }
     }
     else if (_content != NULL){
@@ -3453,7 +3487,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
     FILE *download_file = NULL;
     uint8_t try_times = 0;
 
-    length_of_message = strlen(_req_type) + 53;
+    length_of_message = (uint32_t) strlen(_req_type) + 53;
     stcp_trx_buffer = (unsigned char *) malloc((length_of_message + 1) * sizeof(unsigned char));
     if (stcp_trx_buffer == NULL){
         stcp_debug(__func__, "ERROR", "failed to allocate message variable memory\n");
@@ -3494,16 +3528,16 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         return NULL;
     }
 
-    stcpSock socket_f;
+    stcpSock http_socket_f;
     /* use stcp_trx_buffer variable for store host_name variable (temporary) to reduce memory allocation */
     memset(stcp_trx_buffer, 0x00, (length_of_message * sizeof(char)));
     memcpy(stcp_trx_buffer, _url + host.stcp_sub_pos, host.stcp_sub_size);
     if (protocol==0){
-        socket_f = stcp_client_init((char *) stcp_trx_buffer, port);
+        http_socket_f = stcp_client_init((char *) stcp_trx_buffer, port);
     }
     else {
         #ifdef __STCP_SSL__
-        socket_f = stcp_ssl_client_init((char *) stcp_trx_buffer, port);
+        http_socket_f = stcp_ssl_client_init((char *) stcp_trx_buffer, port);
         #else
         stcp_debug(__func__, "WARNING", "please enable __STCP_SSL__ on shiki-tcp-ip-tools.h\n");
         free(stcp_trx_buffer);
@@ -3519,7 +3553,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         return NULL;
         #endif
     }
-    if (socket_f.socket_f <= 0){
+    if (http_socket_f.socket_f <= 0){
         free(stcp_trx_buffer);
         stcp_trx_buffer = NULL;
         if (_header != NULL){
@@ -3529,7 +3563,8 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
             }
         }
         response = (unsigned char *) realloc(response, 17*sizeof(unsigned char));
-        strcpy((char *) response, "no route to host");
+        memset(response, 0x00, 17*sizeof(unsigned char));
+        strncpy((char *) response, "no route to host", 16);
         return response;
     }
     length_of_message = length_of_message + host.stcp_sub_size + end_point.stcp_sub_size;
@@ -3701,13 +3736,13 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
     }
 
     if (protocol == 0){
-        stcp_send_data(socket_f, stcp_trx_buffer, strlen((char *) stcp_trx_buffer));
+        stcp_send_data(http_socket_f, stcp_trx_buffer, strlen((char *) stcp_trx_buffer));
         if (_request_type == STCP_REQ_UPLOAD_FILE){
-            stcp_send_file(socket_f, _content);
+            stcp_send_file(http_socket_f, _content);
             if (strstr(_header, "multipart/form-data") != NULL && boundary != NULL){
                 char *endboundary = stcp_http_content_generator(64, "\r\n--%s--", boundary);
                 if (endboundary != NULL){
-                    stcp_send_data(socket_f, (unsigned char *) endboundary, strlen(endboundary));
+                    stcp_send_data(http_socket_f, (unsigned char *) endboundary, strlen(endboundary));
                     free(endboundary);
                     endboundary = NULL;
                 }
@@ -3721,13 +3756,13 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
     }
     else {
         #ifdef __STCP_SSL__
-        stcp_ssl_send_data(socket_f, (unsigned char *) stcp_trx_buffer, strlen((char *) stcp_trx_buffer));
+        stcp_ssl_send_data(http_socket_f, (unsigned char *) stcp_trx_buffer, strlen((char *) stcp_trx_buffer));
         if (_request_type == STCP_REQ_UPLOAD_FILE){
-            stcp_ssl_send_file(socket_f, _content);
+            stcp_ssl_send_file(http_socket_f, _content);
             if (strstr(_header, "multipart/form-data") != NULL && boundary != NULL){
                 char *endboundary = stcp_http_content_generator(64, "\r\n--%s--\r\n\r\n", boundary);
                 if (endboundary != NULL){
-                    stcp_ssl_send_data(socket_f, (unsigned char *) endboundary, strlen(endboundary));
+                    stcp_ssl_send_data(http_socket_f, (unsigned char *) endboundary, strlen(endboundary));
                     free(endboundary);
                     endboundary = NULL;
                 }
@@ -3756,11 +3791,11 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
     do {
         memset(stcp_trx_buffer, 0x00, stcp_setup_data.stcp_size_per_recv + 1);
         if (protocol == 0){
-            bytes = stcp_recv_data(socket_f, stcp_trx_buffer, stcp_setup_data.stcp_size_per_recv);
+            bytes = stcp_recv_data(http_socket_f, stcp_trx_buffer, stcp_setup_data.stcp_size_per_recv);
         }
         else {
             #ifdef __STCP_SSL__
-            bytes = stcp_ssl_recv_data(socket_f, stcp_trx_buffer, stcp_setup_data.stcp_size_per_recv);
+            bytes = stcp_ssl_recv_data(http_socket_f, stcp_trx_buffer, stcp_setup_data.stcp_size_per_recv);
             #endif
         }
         if (bytes == -1){
@@ -3910,11 +3945,11 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
 
     request_finished:
         if (protocol == 0){
-            stcp_close(&socket_f);
+            stcp_close(&http_socket_f);
         }
         else {
             #ifdef __STCP_SSL__
-            stcp_ssl_close(&socket_f);
+            stcp_ssl_close(&http_socket_f);
             #endif
         }
         if (_request_type == STCP_REQ_DOWNLOAD_CONTENT){
