@@ -128,7 +128,12 @@ inline void stcp_debug(const char *function_name, char *debug_type, char *debug_
                  d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec,
                  msec, debug_type, function_name
                 );
-            if (strcmp(debug_type, "WEBSERVER INFO")==0)
+            else if (strcmp(debug_type, "DOWNLOAD")==0)
+                printf("%02d-%02d-%04d %02d:%02d:%02d.%03d\033[0;34m STCP\033[1;32m %s\033[0m %s: ",
+                 d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec,
+                 msec, debug_type, function_name
+                );
+            else if (strcmp(debug_type, "WEBSERVER INFO")==0)
                 printf("%02d-%02d-%04d %02d:%02d:%02d.%03d\033[0;34m STCP\033[1;32m %s\033[0m %s: ",
                  d_tm->tm_mday, d_tm->tm_mon+1, d_tm->tm_year+1900, d_tm->tm_hour, d_tm->tm_min, d_tm->tm_sec,
                  msec, debug_type, function_name
@@ -219,8 +224,8 @@ static int8_t stcp_check_ip(char *_ip_address){
     aviable_value_per_point[1] = 0;
     aviable_value_per_point[2] = 0;
     aviable_value_per_point[3] = 0;
-    int8_t i = 0;
-    for (i=0; i<strlen(_ip_address); i++){
+    int i = 0;
+    for (i=0; i < (int) strlen(_ip_address); i++){
         if(_ip_address[i] == '.'){
             point_counter++;
         }
@@ -1626,9 +1631,9 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, st
         }
         sprintf(spc_buff, "*/*\r\n"
          "Content-Range: bytes %li-%li/%li",
-         _stcpWI->partial_length,
-         (_stcpWI->partial_length + partial_size - 1),
-         content_size
+         (long) _stcpWI->partial_length,
+         (long) (_stcpWI->partial_length + partial_size - 1),
+         (long) content_size
         );
         content_size = partial_size;
         if (stcp_http_webserver_generate_header(
@@ -1797,6 +1802,11 @@ int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, st
     #endif
 
     stcpSock init_data;
+    init_data.socket_f = 0;
+    init_data.connection_f = 0;
+    #ifdef __STCP_SSL__
+        init_data.ssl_connection_f = NULL;
+    #endif
     fd_set readfds;
 
     char *buffer = NULL;
@@ -2417,6 +2427,8 @@ void stcp_http_webserver_stop(){
 
 stcpSock stcp_client_init(char *ADDRESS, uint16_t PORT){
     stcpSock init_data;
+    init_data.socket_f = 0;
+    init_data.connection_f = 0;
     int8_t retval = 0;
     struct sockaddr_in servaddr;
 
@@ -2424,16 +2436,16 @@ stcpSock stcp_client_init(char *ADDRESS, uint16_t PORT){
         init_data.socket_f = socket(AF_INET, SOCK_STREAM, 0); 
         if (init_data.socket_f < 0) {
             stcp_debug(__func__, "CRITICAL", "socket creation failed...\n");
-            retval = (int8_t) init_data.socket_f;
+            retval = (int8_t) -1;
         }
         else{
-            retval = (int8_t) init_data.socket_f;
+            retval = (int8_t) 0;
             stcp_debug(__func__, "INFO", "Socket successfully created : %d\n", init_data.socket_f);
             memset(&servaddr, 0x00, sizeof(servaddr));
             servaddr.sin_family = AF_INET;
-            servaddr.sin_port = htons(PORT);
+            servaddr.sin_port = (in_port_t) htons(PORT);
             if(stcp_check_ip(ADDRESS) != 0){
-                struct hostent *host;
+                struct hostent *host = NULL;
                 host = gethostbyname(ADDRESS);
                 if (host != NULL){
                     servaddr.sin_addr.s_addr = inet_addr(inet_ntoa(*((struct in_addr*) host->h_addr_list[0])));
@@ -2482,6 +2494,9 @@ stcpSock stcp_client_init(char *ADDRESS, uint16_t PORT){
 #ifdef __STCP_SSL__
 stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
     stcpSock init_data;
+    init_data.socket_f = 0;
+    init_data.connection_f = 0;
+    init_data.ssl_connection_f = NULL;
     int8_t retval = 0;
     struct sockaddr_in servaddr;
 
@@ -2489,16 +2504,16 @@ stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
         init_data.socket_f = socket(AF_INET, SOCK_STREAM, 0); 
         if (init_data.socket_f < 0) {
             stcp_debug(__func__, "CRITICAL", "socket creation failed...\n");
-            retval = (int8_t) init_data.socket_f;
+            retval = (int8_t) -1;
         }
         else{
-            retval = (int8_t) init_data.socket_f;
+            retval = (int8_t) 0;
             stcp_debug(__func__, "INFO", "Socket successfully created : %d\n", init_data.socket_f);
             memset(&servaddr, 0x00, sizeof(servaddr));
             servaddr.sin_family = AF_INET;
-            servaddr.sin_port = htons(PORT);
+            servaddr.sin_port = (in_port_t) htons(PORT);
             if(stcp_check_ip(ADDRESS) != 0){
-                struct hostent *host;
+                struct hostent *host = NULL;
                 host = gethostbyname(ADDRESS);
                 if (host != NULL){
                     servaddr.sin_addr.s_addr = inet_addr(inet_ntoa(*((struct in_addr*) host->h_addr_list[0])));
@@ -3941,12 +3956,18 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
 
 void stcp_close(stcpSock *init_data){
     if(init_data->socket_f == init_data->connection_f){
-        close(init_data->socket_f);
+        if (init_data->socket_f > 0){
+            close(init_data->socket_f);
+        }
         init_data->socket_f = -1;
     }
     else{
-        close(init_data->connection_f);
-        close(init_data->socket_f);
+        if (init_data->connection_f > 0){
+            close(init_data->connection_f);
+        }
+        if (init_data->socket_f > 0){
+            close(init_data->socket_f);
+        }
         init_data->connection_f = -1;
         init_data->socket_f = -1;
     }
@@ -3954,41 +3975,31 @@ void stcp_close(stcpSock *init_data){
 
 #ifdef __STCP_SSL__
 void stcp_ssl_close(stcpSock *init_data){
-    if (init_data->socket_f > 0){
-        if(init_data->socket_f == init_data->connection_f){
+    if(init_data->socket_f == init_data->connection_f){
+        if (init_data->ssl_connection_f != NULL){
             SSL_shutdown(init_data->ssl_connection_f);
             SSL_free(init_data->ssl_connection_f);
-            init_data->ssl_connection_f = NULL;
-            close(init_data->socket_f);
-            init_data->socket_f = -1;
         }
-        else{
-            SSL_shutdown(init_data->ssl_connection_f);
-            SSL_free(init_data->ssl_connection_f);
-            init_data->ssl_connection_f = NULL;
-            close(init_data->connection_f);
+        if (init_data->socket_f > 0){
             close(init_data->socket_f);
-            init_data->connection_f = -1;
-            init_data->socket_f = -1;
         }
+        init_data->ssl_connection_f = NULL;
+        init_data->socket_f = -1;
     }
-    else {
-        if(init_data->socket_f == init_data->connection_f){
+    else{
+        if (init_data->ssl_connection_f != NULL){
             SSL_shutdown(init_data->ssl_connection_f);
             SSL_free(init_data->ssl_connection_f);
-            init_data->ssl_connection_f = NULL;
-            close(init_data->socket_f);
-            init_data->socket_f = -1;
         }
-        else{
-            SSL_shutdown(init_data->ssl_connection_f);
-            SSL_free(init_data->ssl_connection_f);
-            init_data->ssl_connection_f = NULL;
+        if (init_data->connection_f > 0){
             close(init_data->connection_f);
-            close(init_data->socket_f);
-            init_data->connection_f = -1;
-            init_data->socket_f = -1;
         }
+        if (init_data->socket_f){
+            close(init_data->socket_f);
+        }
+        init_data->ssl_connection_f = NULL;
+        init_data->connection_f = -1;
+        init_data->socket_f = -1;
     }
 }
 #endif
