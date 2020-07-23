@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.11.20.07.01
+    ver         : 3.12.20.07.23
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -729,14 +729,14 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
         #endif
         return -1;
     }
-    stcpWI.rcv_header = (char *) malloc(8*sizeof(char));
+    stcpWI.rcv_header = (unsigned char *) malloc(8*sizeof(unsigned char));
     if (stcpWI.rcv_header == NULL){
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to allocate rcv_header memory\n");
         #endif
         goto stcp_err_1;
     }
-    stcpWI.rcv_content = (char *) malloc(8*sizeof(char));
+    stcpWI.rcv_content = (unsigned char *) malloc(8*sizeof(unsigned char));
     if (stcpWI.rcv_content == NULL){
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to allocate rcv_content memory\n");
@@ -793,14 +793,15 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
 }
 
 static void stcp_http_webserver_bzero(stcpWInfo *_stcpWI, stcpWHead *_stcpWH){
-    _stcpWI->rcv_header = (char *) realloc(_stcpWI->rcv_header, 8*sizeof(char));
-    _stcpWI->rcv_content = (char *) realloc(_stcpWI->rcv_content, 8*sizeof(char));
+    _stcpWI->rcv_header = (unsigned char *) realloc(_stcpWI->rcv_header, 8*sizeof(unsigned char));
+    _stcpWI->rcv_content = (unsigned char *) realloc(_stcpWI->rcv_content, 8*sizeof(unsigned char));
 
-    memset(_stcpWI->rcv_header, 0x00, 8*sizeof(char));
-    memset(_stcpWI->rcv_content, 0x00, 8*sizeof(char));
+    memset(_stcpWI->rcv_header, 0x00, 8*sizeof(unsigned char));
+    memset(_stcpWI->rcv_content, 0x00, 8*sizeof(unsigned char));
 
     memset(&(_stcpWI->request), 0x00, sizeof(_stcpWI->request));
     memset(&(_stcpWI->rcv_endpoint), 0x00, sizeof(_stcpWI->rcv_endpoint));
+    memset(&(_stcpWI->rcv_boundary), 0x00, sizeof(_stcpWI->rcv_boundary));
     memset(&(_stcpWI->data_end_point), 0x00, sizeof(_stcpWI->data_end_point));
     memset(&(_stcpWI->rcv_content_type), 0x00, sizeof(_stcpWI->rcv_content_type));
     memset(&(_stcpWI->rcv_acception_type), 0x00, sizeof(_stcpWI->rcv_acception_type));
@@ -892,11 +893,14 @@ static void stcp_http_webserver_header_segment(
 
 static inline void stcp_http_webserver_print_segment(unsigned char *_header, stcpSHead _segmen_data, char *_description){
     if (_segmen_data.stcp_sub_size == 0){
-        stcp_debug(__func__, "WEBSERVER INFO", "%s: (null)\n", _description);
+        stcp_debug(__func__, "INFO", "%s: (null)\n", _description);
+        return;
     }
-    write(STDOUT_FILENO, _header + _segmen_data.stcp_sub_pos, _segmen_data.stcp_sub_size);
-    putchar(0x0d);
-    putchar(0x0a);
+    stcp_debug(__func__, "INFO", "%s:\r\n", _description);
+    if (stcp_setup_data.stcp_debug_mode == STCP_DEBUG_ON){
+        write(STDOUT_FILENO, _header + _segmen_data.stcp_sub_pos, _segmen_data.stcp_sub_size);
+        printf("\r\n");
+    }
 }
 
 static unsigned long long stcp_get_partial_length(char *_text_source){
@@ -940,8 +944,7 @@ static unsigned long long stcp_get_partial_length(char *_text_source){
 
 void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
     uint16_t idx_char = 0;
-    stcp_debug(__func__, "WEBSERVER INFO", "HEADER\n");
-    printf("%s\n", _stcpWI->rcv_header);
+    stcp_debug(__func__, "INFO", "HEADER\n%s\n", (char *) _stcpWI->rcv_header);
     /* GET REQUEST TYPE */
     _stcpWI->request.stcp_sub_pos = 0;
     _stcpWI->request.stcp_sub_size = 0;
@@ -950,7 +953,7 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
         _stcpWI->request.stcp_sub_size++;
     }
     idx_char++;
-    stcp_http_webserver_print_segment((unsigned char *) _stcpWI->rcv_header, _stcpWI->request, "REQUEST");
+    stcp_http_webserver_print_segment(_stcpWI->rcv_header, _stcpWI->request, "REQUEST");
     /* GET ENDPOINT */
     _stcpWI->rcv_endpoint.stcp_sub_pos = idx_char;
     while (_stcpWI->rcv_header[idx_char] != ' ' &&
@@ -972,11 +975,11 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
             _stcpWI->data_end_point.stcp_sub_size++;
         }
     }
-    stcp_http_webserver_print_segment((unsigned char *) _stcpWI->rcv_header, _stcpWI->data_end_point, "DATA ENDPOINT");
+    stcp_http_webserver_print_segment(_stcpWI->rcv_header, _stcpWI->data_end_point, "DATA ENDPOINT");
     /* GET CONTENT TYPE */
-    if (strstr(_stcpWI->rcv_header, "Content-Type:") != NULL){
+    if (strstr((char *) _stcpWI->rcv_header, "Content-Type:") != NULL){
         stcp_http_webserver_header_segment(
-         (unsigned char *) _stcpWI->rcv_header,
+         _stcpWI->rcv_header,
          (unsigned char *) "Content-Type:",
          &(_stcpWI->rcv_content_type.stcp_sub_pos),
          &(_stcpWI->rcv_content_type.stcp_sub_size),
@@ -984,67 +987,78 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
          0x01);
     }
     stcp_http_webserver_print_segment((unsigned char *) _stcpWI->rcv_header, _stcpWI->rcv_content_type, "CONTENT TYPE");
-    /* GET CONNECTION TYPE */
-    if (strstr(_stcpWI->rcv_header, "Connection:") != NULL){
+    /* GET BOUNDARY */
+    if (strstr((char *) _stcpWI->rcv_header, "boundary=") != NULL){
         stcp_http_webserver_header_segment(
-         (unsigned char *) _stcpWI->rcv_header,
+         _stcpWI->rcv_header,
+         (unsigned char *) "boundary=",
+         &(_stcpWI->rcv_boundary.stcp_sub_pos),
+         &(_stcpWI->rcv_boundary.stcp_sub_size),
+         '\r',
+         0x00);
+    }
+    stcp_http_webserver_print_segment(_stcpWI->rcv_header, _stcpWI->rcv_boundary, "BOUNDARY");
+    /* GET CONNECTION TYPE */
+    if (strstr((char *) _stcpWI->rcv_header, "Connection:") != NULL){
+        stcp_http_webserver_header_segment(
+         _stcpWI->rcv_header,
          (unsigned char *) "Connection:",
          &(_stcpWI->rcv_connection_type.stcp_sub_pos),
          &(_stcpWI->rcv_connection_type.stcp_sub_size),
          '\r',
          0x01);
     }
-    stcp_http_webserver_print_segment((unsigned char *) _stcpWI->rcv_header, _stcpWI->rcv_connection_type, "CONNECTION");
+    stcp_http_webserver_print_segment(_stcpWI->rcv_header, _stcpWI->rcv_connection_type, "CONNECTION");
     /* GET ACCEPTION TYPE */
-    if (strstr(_stcpWI->rcv_header, "Accept:") != NULL){
+    if (strstr((char *) _stcpWI->rcv_header, "Accept:") != NULL){
         stcp_http_webserver_header_segment(
-         (unsigned char *) _stcpWI->rcv_header,
+         _stcpWI->rcv_header,
          (unsigned char *) "Accept:",
          &(_stcpWI->rcv_acception_type.stcp_sub_pos),
          &(_stcpWI->rcv_acception_type.stcp_sub_size),
          '\r',
          0x01);
     }
-    stcp_http_webserver_print_segment((unsigned char *) _stcpWI->rcv_header, _stcpWI->rcv_acception_type, "ACCEPT");
+    stcp_http_webserver_print_segment(_stcpWI->rcv_header, _stcpWI->rcv_acception_type, "ACCEPT");
     /* GET AUTH */
-    if (strstr(_stcpWI->rcv_header, "Authentication:") != NULL){
+    if (strstr((char *) _stcpWI->rcv_header, "Authentication:") != NULL){
         stcp_http_webserver_header_segment(
-         (unsigned char *) _stcpWI->rcv_header,
+         _stcpWI->rcv_header,
          (unsigned char *) "Authentication:",
          &(_stcpWI->rcv_auth.stcp_sub_pos),
          &(_stcpWI->rcv_auth.stcp_sub_size),
          '\r',
          0x00);
     }
-    else if (strstr(_stcpWI->rcv_header, "Authorization:") != NULL){
+    else if (strstr((char *) _stcpWI->rcv_header, "Authorization:") != NULL){
         stcp_http_webserver_header_segment(
-         (unsigned char *) _stcpWI->rcv_header,
+         _stcpWI->rcv_header,
          (unsigned char *) "Authorization:",
          &(_stcpWI->rcv_auth.stcp_sub_pos),
          &(_stcpWI->rcv_auth.stcp_sub_size),
          '\r',
          0x00);
     }
-    stcp_http_webserver_print_segment((unsigned char *) _stcpWI->rcv_header, _stcpWI->rcv_auth, "AUTH");
+    stcp_http_webserver_print_segment(_stcpWI->rcv_header, _stcpWI->rcv_auth, "AUTH");
     /* GET COOKIE */
-    if (strstr(_stcpWI->rcv_header, "Cookie:") != NULL){
+    if (strstr((char *) _stcpWI->rcv_header, "Cookie:") != NULL){
         stcp_http_webserver_header_segment(
-         (unsigned char *) _stcpWI->rcv_header,
+         _stcpWI->rcv_header,
          (unsigned char *) "Cookie:",
          &(_stcpWI->rcv_cookies.stcp_sub_pos),
          &(_stcpWI->rcv_cookies.stcp_sub_size),
          '\r',
          0x00);
     }
-    stcp_http_webserver_print_segment((unsigned char *) _stcpWI->rcv_header, _stcpWI->rcv_cookies, "COOKIE");
+    stcp_http_webserver_print_segment(_stcpWI->rcv_header, _stcpWI->rcv_cookies, "COOKIE");
     /* GET CONTENT LENTH */
-    _stcpWI->content_length = (uint32_t) stcp_get_content_length(_stcpWI->rcv_header);
+    _stcpWI->content_length = (uint32_t) stcp_get_content_length((char *) _stcpWI->rcv_header);
 
-    stcp_debug(__func__, "WEBSERVER INFO", "CONTENT LENGTH: %i\n", _stcpWI->content_length);
+    stcp_debug(__func__, "INFO", "CONTENT LENGTH: %i\n", _stcpWI->content_length);
 
-    _stcpWI->partial_length = (uint64_t) stcp_get_partial_length(_stcpWI->rcv_header);
+    _stcpWI->partial_length = (uint64_t) stcp_get_partial_length((char *) _stcpWI->rcv_header);
 
-    stcp_debug(__func__, "WEBSERVER INFO", "PARTIAL LENGTH: %i\n", _stcpWI->partial_length);
+    stcp_debug(__func__, "INFO", "PARTIAL LENGTH: %i\n", _stcpWI->partial_length);
 }
 
 int8_t stcp_http_webserver_generate_header(
@@ -1530,10 +1544,10 @@ char *stcp_http_webserver_select_response(stcpWInfo *_stcpWI, stcpWList _stcpWLi
     }
     strcpy(_respons_code, "200 OK");
     if (memcmp(_data.sl_value, "callback:", 9) != 0){
-        printf("selected response: %s\n", (char *) _data.sl_value);
+        stcp_debug(__func__, "INFO", "selected response: %s\n", (char *) _data.sl_value);
     }
     else {
-        printf("selected response: callback function\n");
+        stcp_debug(__func__, "INFO", "selected response: callback function\n");
     }
     return (char *) _data.sl_value;
 }
@@ -1643,7 +1657,7 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data,
         strcpy(content_type_file, _stcpWH->content_type);
     }
 
-    if (strstr(_stcpWI->rcv_header, "Range: bytes=") == NULL){
+    if (strstr((char *) _stcpWI->rcv_header, "Range: bytes=") == NULL){
         if (stcp_http_webserver_generate_header(
          _stcpWI,
          _response_code,
@@ -1767,7 +1781,7 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data,
     free(file_content);
     file_content = NULL;
     fclose(stcp_file);
-    printf("closed_flad: %d\n", closed_flag);
+    printf("closed_flag: %d\n", closed_flag);
     return closed_flag;
 }
 
@@ -1843,9 +1857,9 @@ int8_t stcp_http_webserver(
     #endif
     fd_set readfds;
 
-    char *buffer = NULL;
+    unsigned char *buffer = NULL;
     uint32_t buffer_size = stcp_setup_data.stcp_size_per_recv;
-    buffer = (char *) malloc(buffer_size * sizeof(char));
+    buffer = (unsigned char *) malloc(buffer_size * sizeof(unsigned char));
     if (buffer == NULL){
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, "ERROR", "failed to allocate memory\n");
@@ -2019,7 +2033,7 @@ int8_t stcp_http_webserver(
     memset(client_fd, 0x00, sizeof(client_fd));
     memset(&client_addr, 0x00, sizeof(client_addr));
     memset(keep_alive_cnt, 0x00, sizeof(keep_alive_cnt));
-    memset(buffer, 0x00, buffer_size*sizeof(char));
+    memset(buffer, 0x00, buffer_size*sizeof(unsigned char));
 
     int32_t stcp_bytes = 0;
     uint32_t stcp_size = 8;
@@ -2178,17 +2192,17 @@ int8_t stcp_http_webserver(
                 while(stcp_server_state == STCP_SERVER_RUNING){
                     if (proc_state == STCP_PROCESS_GET_HEADER){
                         if (!_stcpWI->comm_protocol){
-                            stcp_bytes = stcp_recv_data(init_data, (unsigned char *) buffer, buffer_size);
+                            stcp_bytes = stcp_recv_data(init_data, buffer, buffer_size);
                         }
                         else {
                             #ifdef __STCP_SSL__
-                                stcp_bytes = stcp_ssl_recv_data(init_data, (unsigned char *) buffer, buffer_size);
+                                stcp_bytes = stcp_ssl_recv_data(init_data, buffer, buffer_size);
                             #else
                                 goto close_client;
                             #endif
                         }
                         if (stcp_bytes <= 0){
-                            if(strstr(_stcpWI->rcv_header, "HTTP") != NULL || stcp_bytes < 0){
+                            if(strstr((char *) _stcpWI->rcv_header, "HTTP") != NULL || stcp_bytes < 0){
                                 stcp_debug(__func__, "WEBSERVER INFO", "Lost Connection..\n");
                                 goto close_client;
                             }
@@ -2204,17 +2218,20 @@ int8_t stcp_http_webserver(
                                     goto close_client;
                                 }
                             }
-                            goto stcp_func;
+                            else if (stcp_bytes || idx_chr){
+                                goto stcp_func;
+                            }
+                            goto close_client;
                         }
                         else {
                             while (stcp_size < (idx_chr + stcp_bytes) + 2){
                                 stcp_size = stcp_size + 8;
                                 if (stcp_size >= (idx_chr + stcp_bytes) + 2){
-                                    _stcpWI->rcv_header = (char *) realloc(_stcpWI->rcv_header, (stcp_size + 1)*sizeof(char));
+                                    _stcpWI->rcv_header = (unsigned char *) realloc(_stcpWI->rcv_header, (stcp_size + 1)*sizeof(unsigned char));
                                 }
                             }
                             memcpy(_stcpWI->rcv_header + idx_chr, buffer, stcp_bytes);
-                            if(strstr(_stcpWI->rcv_header, "HTTP") == NULL){
+                            if(strstr((char *) _stcpWI->rcv_header, "HTTP") == NULL){
                                 if(_stcpWI->rcv_header[idx_chr + stcp_bytes - 1] == '\n'){
                                     stcp_debug(__func__, "WEBSERVER INFO", "goto stcp origin function\n");
                                     goto stcp_func;
@@ -2231,11 +2248,11 @@ int8_t stcp_http_webserver(
                                     ){
                                         if (stcp_bytes > 0){
                                             stcp_size = stcp_bytes - 3;
-                                            _stcpWI->rcv_content = (char *) realloc(_stcpWI->rcv_content, stcp_size*sizeof(char));
+                                            _stcpWI->rcv_content = (unsigned char *) realloc(_stcpWI->rcv_content, stcp_size*sizeof(unsigned char));
                                             memset(_stcpWI->rcv_content, 0x00, stcp_size);
                                             memcpy(_stcpWI->rcv_content, _stcpWI->rcv_header + idx_chr, (stcp_bytes - 4));
                                             _stcpWI->rcv_header[idx_chr] = 0x00;
-                                            _stcpWI->rcv_header = (char *) realloc(_stcpWI->rcv_header, (idx_chr + 1)*sizeof(char));
+                                            _stcpWI->rcv_header = (unsigned char *) realloc(_stcpWI->rcv_header, (idx_chr + 1)*sizeof(unsigned char));
                                         }
                                         else {
                                             _stcpWI->rcv_header[idx_chr] = 0x00;
@@ -2254,18 +2271,15 @@ int8_t stcp_http_webserver(
                             ){
                                 break;
                             }
-                            else {
-                                _stcpWI->rcv_header[idx_chr + 1] = 0x00;
-                            }
                         }
                     }
                     else{
                         if (!_stcpWI->comm_protocol){
-                            stcp_bytes = stcp_recv_data(init_data, (unsigned char *) buffer, _stcpWI->content_length);
+                            stcp_bytes = stcp_recv_data(init_data, buffer, buffer_size);
                         }
                         else {
                             #ifdef __STCP_SSL__
-                                stcp_bytes = stcp_ssl_recv_data(init_data, (unsigned char *) buffer, _stcpWI->content_length);
+                                stcp_bytes = stcp_ssl_recv_data(init_data, buffer, buffer_size);
                             #else
                                 goto close_client;
                             #endif
@@ -2278,7 +2292,7 @@ int8_t stcp_http_webserver(
                             while (stcp_size < (idx_chr + stcp_bytes) + 2){
                                 stcp_size = stcp_size + 8;
                                 if (stcp_size >= idx_chr + 2){
-                                    _stcpWI->rcv_content = (char *) realloc(_stcpWI->rcv_content, stcp_size*sizeof(char));
+                                    _stcpWI->rcv_content = (unsigned char *) realloc(_stcpWI->rcv_content, stcp_size*sizeof(unsigned char));
                                 }
                             }
                             memcpy(_stcpWI->rcv_content + idx_chr, buffer, stcp_bytes);
@@ -2290,8 +2304,8 @@ int8_t stcp_http_webserver(
                         }
                     }
                 }
-                if (strlen(_stcpWI->rcv_content) > 0){
-                    printf("Content (%li):\n%s\n", (long) strlen(_stcpWI->rcv_content), _stcpWI->rcv_content);
+                if (idx_chr > 0){
+                    stcp_debug(__func__, "INFO", "Content Received %li bytes\n", (long) idx_chr);
                 }
                 
                 char *response_content = NULL;
@@ -2420,10 +2434,10 @@ int8_t stcp_http_webserver(
                             ssl_client_fd[idx_client] = init_data.ssl_connection_f;
                         #endif
                     }
+                    stcp_debug(__func__, "WEBSERVER INFO", "one client connection \033[1;31m closed\033[0m (%d:%d)\n", idx_client, init_data.connection_f);
                     close(init_data.connection_f);
                     init_data.connection_f = 0;
                     keep_alive_cnt[idx_client] = 0;
-                    stcp_debug(__func__, "WEBSERVER INFO", "one client connection \033[1;31m closed\033[0m (%d)\n", idx_client);
                 stcp_next:
                     client_fd[idx_client] = init_data.connection_f;
             }
@@ -2859,9 +2873,9 @@ int8_t stcp_send_file(stcpSock _init_data, char *_file_name){
 int32_t stcp_recv_data(stcpSock _init_data, unsigned char* buff, int32_t size_set){
     int32_t bytes;
     bytes = (int32_t) read(_init_data.connection_f, buff, size_set*sizeof(char));
-    if (bytes >= 0) stcp_debug(__func__, "INFO", "success to receive %d data\n", bytes);
+    if (bytes >= 0) stcp_debug(__func__, "INFO", "success to receive %li data\n", (long) bytes);
     else if (stcp_setup_data.stcp_timeout_sec > 0 || stcp_setup_data.stcp_timeout_millisec > 0){
-        stcp_debug(__func__, "WARNING", "receive %d data. request timeout or finished\n", bytes);
+        stcp_debug(__func__, "WARNING", "receive %li data. request timeout or finished\n", (long) bytes);
     }
     else {
         stcp_debug(__func__, "WARNING", "request timeout\n");
@@ -3564,7 +3578,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         }
         response = (unsigned char *) realloc(response, 17*sizeof(unsigned char));
         memset(response, 0x00, 17*sizeof(unsigned char));
-        strncpy((char *) response, "no route to host", 16);
+        strncpy((char *) response, "no route to host", 17);
         return response;
     }
     length_of_message = length_of_message + host.stcp_sub_size + end_point.stcp_sub_size;

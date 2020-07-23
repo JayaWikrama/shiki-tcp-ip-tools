@@ -81,16 +81,17 @@ typedef struct stcp_subhead_var{
 
   struct stcp_webserver_info{
     char *server_header;
-    char *rcv_header;
+    unsigned char *rcv_header;
     stcpSHead request;
     stcpSHead data_end_point;
     stcpSHead rcv_endpoint;
+    stcpSHead rcv_boundary;
     stcpSHead rcv_content_type;
     stcpSHead rcv_acception_type;
     stcpSHead rcv_auth;
     stcpSHead rcv_cookies;
     stcpSHead rcv_connection_type;
-    char *rcv_content;
+    unsigned char *rcv_content;
     char *ipaddr;
     uint32_t content_length;
     uint64_t partial_length;
