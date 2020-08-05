@@ -126,6 +126,12 @@ typedef enum{
   STCP_SET_KEEP_ALIVE_TIMEOUT_IN_MILLISEC = 6,
   STCP_SET_INFINITE_MODE_RETRY = 7
   #ifdef __STCP_WEBSERVER__
+  ,
+  STCP_SET_MAX_ELAPSED_CONNECTION = 80,
+  STCP_SET_SLOW_HTTP_ATTACK_BLOCKING_TIME = 81,
+  STCP_SET_SLOW_HTTP_ATTACK_COUNTER_ACCEPTED = 82,
+  STCP_SET_MAX_RECEIVED_HEADER = 83,
+  STCP_SET_MAX_RECEIVED_DATA = 84
   #ifdef __STCP_SSL__
   ,
   STCP_SET_WEBSERVER_VERIFY_CERT_MODE = 99
@@ -166,13 +172,14 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
 int8_t stcp_http_webserver_add_negative_code_response(stcpWList *_stcpWList, stcp_webserver_negative_code _code_param, char *_response_content);
 int8_t stcp_http_webserver_add_response(stcpWList *_stcpWList, char *_end_point, char *_response_content, char *_request_method);
 int8_t stcp_http_webserver_add_response_file(stcpWList *_stcpWList, char *_end_point, char *_response_file, char *_request_method);
-int8_t stcp_http_webserver_add_response_function(stcpWList *_stcpWList, char *_end_point, char *_response_function, char *_request_method);
 int8_t stcp_http_webserver_add_response_callback(stcpWList *_stcpWList, char *_end_point, void *_response_function, char *_request_method);
+int8_t stcp_http_webserver_add_tcp_response_callback(stcpWList *_stcpWList, unsigned char *_start_bits, uint16_t _start_bits_size, void *_response_function);
 int8_t stcp_http_webserver_set_content_type(stcpWHead *_stcpWH, char *_content_type);
 int8_t stcp_http_webserver_set_accept(stcpWHead *_stcpWH, char *_accept);
 int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList _stcpWList);
 
 int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_header, char *_content_type, char *_acception_type, uint64_t _content_length);
+char *stcp_http_webserver_generate_full_response(stcpWInfo *_stcpWI, char *_response_header, char *_content_type, char *_acception_type, char *_content);
 int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, stcpWHead *_stcpWH, char *_response_code, char *_file_name);
 void stcp_http_webserver_stop();
 #endif
