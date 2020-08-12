@@ -30,11 +30,21 @@
 #endif
 
 typedef enum {
-  WITHOUT_RETRY = 0x00,
-  INFINITE_RETRY = 0x01,
-  STCP_DEBUG_OFF = 0x04,
-  STCP_DEBUG_ON = 0x03
+  STCP_DEBUG_OFF = 0x00,
+  STCP_DEBUG_ON = 0x01,
+  WITHOUT_RETRY = 0x02,
+  INFINITE_RETRY = 0x03,
 } stcp_global_def;
+
+typedef enum {
+  STCP_DEBUG_INFO = 0x00,
+  STCP_DEBUG_DOWNLOAD = 0x01,
+  STCP_DEBUG_VERSION = 0x02,
+  STCP_DEBUG_WEBSERVER = 0x03,
+  STCP_DEBUG_WARNING = 0x04,
+  STCP_DEBUG_ERROR = 0x05,
+  STCP_DEBUG_CRITICAL = 0x06
+} stcp_debug_type;
 
 #define STCP_MAX_LENGTH_FILE_NAME 16
 
@@ -139,7 +149,7 @@ typedef enum{
   #endif
 } stcp_setup_parameter;
 
-void stcp_debug(const char *function_name, char *debug_type, char *debug_msg, ...);
+void stcp_debug(const char *_function_name, stcp_debug_type _debug_type, const char *_debug_msg, ...);
 
 void stcp_view_version();
 long stcp_get_version(char *_version);
