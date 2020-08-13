@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.12.20.08.12
+    ver         : 3.13.20.08.13
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -39,7 +39,7 @@
     #include <netinet/ip_icmp.h>
 #endif
 #define SA struct sockaddr
-#define STCP_VER "3.12.20.08.12"
+#define STCP_VER "3.13.20.08.13"
 
 typedef enum {
     #ifdef __STCP_WEBSERVER__
@@ -138,7 +138,9 @@ static const char *stcp_mon_str[] = {
 };
 #endif
 
+#ifndef __STCP_DONT_USE_CLIENT__
 char stcp_file_name[STCP_MAX_LENGTH_FILE_NAME];
+#endif
 
 static int8_t stcp_check_ip(char *_ip_address);
 static unsigned long stcp_get_content_length(char *_text_source);
@@ -204,6 +206,7 @@ inline void stcp_debug(const char *_function_name, stcp_debug_type _debug_type, 
     }
 }
 
+#ifndef __STCP_DONT_USE_CLIENT__
 static int8_t stcp_connect_with_timeout (
  int stcp_socket_f,
  struct sockaddr * addr,
@@ -253,6 +256,7 @@ static int8_t stcp_connect_with_timeout (
 	}
 	return 0x00;
 }
+#endif
 
 static int8_t stcp_check_ip(char *_ip_address){
     /* check length */
@@ -695,6 +699,7 @@ void stcp_ssl_clean_certkey_collection(){
 }
 #endif
 
+#ifndef __STCP_DONT_USE_CLIENT__
 int8_t stcp_set_download_file_name(char* _file_name){
     if (strlen(_file_name) > STCP_MAX_LENGTH_FILE_NAME){
         #ifdef __STCP_DEBUG__
@@ -705,6 +710,7 @@ int8_t stcp_set_download_file_name(char* _file_name){
     strcpy(stcp_file_name, _file_name);
     return 0x00;
 }
+#endif
 
 stcpSock stcp_server_init(char *ADDRESS, uint16_t PORT){
     stcpSock init_data;
@@ -2585,6 +2591,7 @@ void stcp_http_webserver_stop(){
 }
 #endif
 
+#ifndef __STCP_DONT_USE_CLIENT__
 stcpSock stcp_client_init(char *ADDRESS, uint16_t PORT){
     stcpSock init_data;
     init_data.socket_f = 0;
@@ -2941,6 +2948,17 @@ static int8_t stcp_socket_send_file(stcpSock _init_data, char *_file_name, int8_
     return 0x00;
 }
 
+int8_t stcp_send_file(stcpSock _init_data, char *_file_name){
+    return stcp_socket_send_file(_init_data, _file_name, STCP_TCP);
+}
+
+#ifdef __STCP_SSL__
+int8_t stcp_ssl_send_file(stcpSock _init_data, char *_file_name){
+    return stcp_socket_send_file(_init_data, _file_name, STCP_SSL);
+}
+#endif
+#endif
+
 int32_t stcp_send_data(stcpSock _init_data, unsigned char* buff, int32_t size_set){
     int32_t bytes;
     int32_t bytes_aviable = 0;
@@ -2976,10 +2994,6 @@ int32_t stcp_send_data(stcpSock _init_data, unsigned char* buff, int32_t size_se
         stcp_debug(__func__, STCP_DEBUG_WARNING, "request timeout\n");
     }
     return bytes;
-}
-
-int8_t stcp_send_file(stcpSock _init_data, char *_file_name){
-    return stcp_socket_send_file(_init_data, _file_name, STCP_TCP);
 }
 
 int32_t stcp_recv_data(stcpSock _init_data, unsigned char* buff, int32_t size_set){
@@ -3033,10 +3047,6 @@ int32_t stcp_ssl_send_data(stcpSock _init_data, unsigned char* buff, int32_t siz
     return bytes;
 }
 
-int8_t stcp_ssl_send_file(stcpSock _init_data, char *_file_name){
-    return stcp_socket_send_file(_init_data, _file_name, STCP_SSL);
-}
-
 int32_t stcp_ssl_recv_data(stcpSock _init_data, unsigned char* buff, int32_t size_set){
     int32_t bytes;
     bytes = (int32_t) SSL_read(_init_data.ssl_connection_f, buff, size_set*sizeof(char));
@@ -3051,6 +3061,7 @@ int32_t stcp_ssl_recv_data(stcpSock _init_data, unsigned char* buff, int32_t siz
 }
 #endif
 
+#ifndef __STCP_DONT_USE_CLIENT__
 int8_t stcp_url_parser(char *_url, int8_t *_protocol, stcpSHead *_host, stcpSHead *_end_point, uint16_t *_port){
     if (strncmp(_url, "http://", 7) == 0 || strncmp(_url, "https://", 8) == 0){
         stcpSHead sub_tmp;
@@ -3123,6 +3134,7 @@ int8_t stcp_url_parser(char *_url, int8_t *_protocol, stcpSHead *_host, stcpSHea
     }
     return 0x00;
 }
+#endif
 
 char *stcp_http_content_generator(unsigned short _size_per_allocate, char *_str_format, ...){
 	va_list ar;
@@ -3415,6 +3427,7 @@ char *stcp_http_str_append(char *_buff_source,
 	return buff_result;
 }
 
+#ifndef __STCP_DONT_USE_CLIENT__
 unsigned char *stcp_http_generate_multipart_header(char *_stcp_multipart_header_input, char *_boundary_output, uint16_t *_length_part){
     /* style: general_header_end_with_multipart/from-data|form_data_1|form_data_2|...|file */
     /* boundary style : --stcpMBoundaryxxxxxxxxxxxx */
@@ -4114,6 +4127,7 @@ unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, cha
         }
         return stcp_select_content(response, download_counter);
 }
+#endif
 
 void stcp_close(stcpSock *init_data){
     if(init_data->socket_f == init_data->connection_f){

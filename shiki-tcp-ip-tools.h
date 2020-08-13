@@ -4,6 +4,7 @@
 #define __STCP_PING__
 #define __STCP_SSL__
 #define __STCP_WEBSERVER__
+//#define __STCP_DONT_USE_CLIENT__ //uncomment this for use as server only
 
 #include <stdint.h>
 #ifdef __STCP_SSL__
