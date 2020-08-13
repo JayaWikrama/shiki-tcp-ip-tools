@@ -897,57 +897,44 @@ static void stcp_http_webserver_free(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stc
 
 static void stcp_http_webserver_header_segment(
  unsigned char *_source_text,
- unsigned char *_specific_word,
+ const unsigned char *_specific_word,
  uint16_t *_pos,
  uint16_t *_size,
- unsigned char _end_code,
+ const unsigned char _end_code,
  int8_t _mode
 ){
-    uint16_t len_buff = (uint16_t) strlen((char *) _source_text);
-    unsigned char buff_tmp[strlen((char *) _specific_word) + 3];
-    uint16_t idx_char = 0;
+    size_t len_buff = strlen((const char *) _source_text);
+    uint16_t idx_char = (uint16_t) (strlen((const char *) _specific_word) % UINT16_MAX);
     uint16_t content_size = 0;
-    uint16_t idx_add = 0;
-    *_pos = 0;
     *_size = 0;
-	while (idx_char<=len_buff){
-        memset(buff_tmp, 0x00, sizeof(buff_tmp));
-        idx_add = 0;
-        while(_source_text[idx_char] != ' ' &&
-         _source_text[idx_char] != '\n' &&
-         _source_text[idx_char] != 0x00 &&
-         strlen((char *) buff_tmp) < (sizeof(buff_tmp)-1)
-        ){
-            buff_tmp[idx_add]=_source_text[idx_char];
+    if(memcmp(_source_text, _specific_word, idx_char) == 0 && len_buff-idx_char > 2){
+		uint16_t i = 0;
+        if (_source_text[idx_char] == 0x20){
             idx_char++;
-            idx_add++;
         }
-        idx_char++;
-        if(memcmp(buff_tmp, _specific_word, strlen((char *) _specific_word)) == 0 && len_buff-idx_char > 2){
-			uint16_t i = 0;
-            if (_source_text[idx_char - 1] != 0x20){
-                idx_char-=3;
-            }
-            *_pos = idx_char;
-            for (i=idx_char; i<len_buff; i++){
-                if(_source_text[i] != _end_code){
-                    if (_source_text[i] >= 'A' && _source_text[i] <= 'Z' && _mode){
-                        _source_text[i] += 0x20;
-                    }
-                    content_size++;
+        *_pos += idx_char;
+        for (i=idx_char; i<len_buff; i++){
+            if(_source_text[i] != _end_code){
+                if (_source_text[i] >= 'A' && _source_text[i] <= 'Z' && _mode){
+                    _source_text[i] += 0x20;
                 }
-                else {
-                    break;
-                }
+                content_size++;
             }
-            *_size = content_size;
-            return;
+            else {
+                break;
+            }
         }
+        *_size = content_size;
+        return;
     }
     return;
 }
 
-static inline void stcp_http_webserver_print_segment(unsigned char *_header, stcpSHead _segmen_data, char *_description){
+static inline void stcp_http_webserver_print_segment(
+ const unsigned char *_header,
+ const stcpSHead _segmen_data,
+ const char *_description
+){
     if (_segmen_data.stcp_sub_size == 0){
         stcp_debug(__func__, STCP_DEBUG_INFO, "%s: (null)\n", _description);
         return;
@@ -990,6 +977,7 @@ static unsigned long long stcp_get_partial_length(const char *_text_source){
 void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
     uint16_t idx_char = 0;
     stcp_debug(__func__, STCP_DEBUG_INFO, "HEADER\n%s\n", (char *) _stcpWI->rcv_header);
+    unsigned char *header_tmp = NULL;
     /* GET REQUEST TYPE */
     _stcpWI->request.stcp_sub_pos = 0;
     _stcpWI->request.stcp_sub_size = 0;
@@ -1022,9 +1010,10 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
     }
     stcp_http_webserver_print_segment(_stcpWI->rcv_header, _stcpWI->data_end_point, "DATA ENDPOINT");
     /* GET CONTENT TYPE */
-    if (strstr((char *) _stcpWI->rcv_header, "Content-Type:") != NULL){
+    if ((header_tmp = (unsigned char *) strstr((char *) _stcpWI->rcv_header, "Content-Type:")) != NULL){
+        _stcpWI->rcv_content_type.stcp_sub_pos = (uint16_t) ((header_tmp - _stcpWI->rcv_header) % UINT16_MAX);
         stcp_http_webserver_header_segment(
-         _stcpWI->rcv_header,
+         header_tmp,
          (unsigned char *) "Content-Type:",
          &(_stcpWI->rcv_content_type.stcp_sub_pos),
          &(_stcpWI->rcv_content_type.stcp_sub_size),
@@ -1033,9 +1022,10 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
     }
     stcp_http_webserver_print_segment((unsigned char *) _stcpWI->rcv_header, _stcpWI->rcv_content_type, "CONTENT TYPE");
     /* GET BOUNDARY */
-    if (strstr((char *) _stcpWI->rcv_header, "boundary=") != NULL){
+    if ((header_tmp = (unsigned char *) strstr((char *) _stcpWI->rcv_header, "boundary=")) != NULL){
+        _stcpWI->rcv_boundary.stcp_sub_pos = (uint16_t) ((header_tmp - _stcpWI->rcv_header) % UINT16_MAX);
         stcp_http_webserver_header_segment(
-         _stcpWI->rcv_header,
+         header_tmp,
          (unsigned char *) "boundary=",
          &(_stcpWI->rcv_boundary.stcp_sub_pos),
          &(_stcpWI->rcv_boundary.stcp_sub_size),
@@ -1044,9 +1034,10 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
     }
     stcp_http_webserver_print_segment(_stcpWI->rcv_header, _stcpWI->rcv_boundary, "BOUNDARY");
     /* GET CONNECTION TYPE */
-    if (strstr((char *) _stcpWI->rcv_header, "Connection:") != NULL){
+    if ((header_tmp = (unsigned char *) strstr((char *) _stcpWI->rcv_header, "Connection:")) != NULL){
+        _stcpWI->rcv_connection_type.stcp_sub_pos = (uint16_t) ((header_tmp - _stcpWI->rcv_header) % UINT16_MAX);
         stcp_http_webserver_header_segment(
-         _stcpWI->rcv_header,
+         header_tmp,
          (unsigned char *) "Connection:",
          &(_stcpWI->rcv_connection_type.stcp_sub_pos),
          &(_stcpWI->rcv_connection_type.stcp_sub_size),
@@ -1055,9 +1046,10 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
     }
     stcp_http_webserver_print_segment(_stcpWI->rcv_header, _stcpWI->rcv_connection_type, "CONNECTION");
     /* GET ACCEPTION TYPE */
-    if (strstr((char *) _stcpWI->rcv_header, "Accept:") != NULL){
+    if ((header_tmp = (unsigned char *) strstr((char *) _stcpWI->rcv_header, "Accept:")) != NULL){
+        _stcpWI->rcv_acception_type.stcp_sub_pos = (uint16_t) ((header_tmp - _stcpWI->rcv_header) % UINT16_MAX);
         stcp_http_webserver_header_segment(
-         _stcpWI->rcv_header,
+         header_tmp,
          (unsigned char *) "Accept:",
          &(_stcpWI->rcv_acception_type.stcp_sub_pos),
          &(_stcpWI->rcv_acception_type.stcp_sub_size),
@@ -1066,18 +1058,20 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
     }
     stcp_http_webserver_print_segment(_stcpWI->rcv_header, _stcpWI->rcv_acception_type, "ACCEPT");
     /* GET AUTH */
-    if (strstr((char *) _stcpWI->rcv_header, "Authentication:") != NULL){
+    if ((header_tmp = (unsigned char *) strstr((char *) _stcpWI->rcv_header, "Authentication:")) != NULL){
+        _stcpWI->rcv_auth.stcp_sub_pos = (uint16_t) ((header_tmp - _stcpWI->rcv_header) % UINT16_MAX);
         stcp_http_webserver_header_segment(
-         _stcpWI->rcv_header,
+         header_tmp,
          (unsigned char *) "Authentication:",
          &(_stcpWI->rcv_auth.stcp_sub_pos),
          &(_stcpWI->rcv_auth.stcp_sub_size),
          '\r',
          0x00);
     }
-    else if (strstr((char *) _stcpWI->rcv_header, "Authorization:") != NULL){
+    else if ((header_tmp = (unsigned char *) strstr((char *) _stcpWI->rcv_header, "Authorization:")) != NULL){
+        _stcpWI->rcv_auth.stcp_sub_pos = (uint16_t) ((header_tmp - _stcpWI->rcv_header) % UINT16_MAX);
         stcp_http_webserver_header_segment(
-         _stcpWI->rcv_header,
+         header_tmp,
          (unsigned char *) "Authorization:",
          &(_stcpWI->rcv_auth.stcp_sub_pos),
          &(_stcpWI->rcv_auth.stcp_sub_size),
@@ -1086,9 +1080,10 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
     }
     stcp_http_webserver_print_segment(_stcpWI->rcv_header, _stcpWI->rcv_auth, "AUTH");
     /* GET COOKIE */
-    if (strstr((char *) _stcpWI->rcv_header, "Cookie:") != NULL){
+    if ((header_tmp = (unsigned char *) strstr((char *) _stcpWI->rcv_header, "Cookie:")) != NULL){
+        _stcpWI->rcv_cookies.stcp_sub_pos = (uint16_t) ((header_tmp - _stcpWI->rcv_header) % UINT16_MAX);
         stcp_http_webserver_header_segment(
-         _stcpWI->rcv_header,
+         header_tmp,
          (unsigned char *) "Cookie:",
          &(_stcpWI->rcv_cookies.stcp_sub_pos),
          &(_stcpWI->rcv_cookies.stcp_sub_size),
@@ -1101,7 +1096,7 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
 
     stcp_debug(__func__, STCP_DEBUG_INFO, "CONTENT LENGTH: %i\n", _stcpWI->content_length);
 
-    _stcpWI->partial_length = (uint64_t) stcp_get_partial_length((char *) _stcpWI->rcv_header);
+    _stcpWI->partial_length = (uint64_t) stcp_get_partial_length((const char *) _stcpWI->rcv_header);
 
     stcp_debug(__func__, STCP_DEBUG_INFO, "PARTIAL LENGTH: %i\n", _stcpWI->partial_length);
 }
