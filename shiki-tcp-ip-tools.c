@@ -112,6 +112,30 @@ struct stcp_setup_var stcp_setup_data = {
 #ifdef __STCP_WEBSERVER__
 int8_t stcp_webserver_init_state = 0;
 int8_t stcp_server_state = 0;
+
+static const char *stcp_day_str[] = {
+    "Sun",
+    "Mon",
+    "Tue",
+    "Wed",
+    "Thu",
+    "Fry",
+    "Sat"
+};
+static const char *stcp_mon_str[] = {
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec"
+};
 #endif
 
 char stcp_file_name[STCP_MAX_LENGTH_FILE_NAME];
@@ -1109,76 +1133,14 @@ int8_t stcp_http_webserver_generate_header(
  uint64_t _content_length
 ){
     time_t stcp_time_access = 0;
-    struct tm *tm_access = NULL;
-    char *header_tmp = NULL;
+    struct tm tm_access;
     time(&stcp_time_access);
-    tm_access = gmtime(&stcp_time_access);
-    char day_id[4];
-    char month_id[4];
-    memset(day_id, 0x00, sizeof(day_id));
-    memset(month_id, 0x00, sizeof(month_id));
-    switch (tm_access->tm_wday){
-        case 0:
-            strcpy(day_id, "Sun");
-        break;
-        case 1:
-            strcpy(day_id, "Mon");
-        break;
-        case 2:
-            strcpy(day_id, "Tue");
-        break;
-        case 3:
-            strcpy(day_id, "Wed");
-        break;
-        case 4:
-            strcpy(day_id, "Thu");
-        break;
-        case 5:
-            strcpy(day_id, "Fry");
-        break;
-        case 6:
-            strcpy(day_id, "Sat");
-        break;
-    }
-    switch (tm_access->tm_mon){
-        case 0:
-            strcpy(month_id, "Jan");
-        break;
-        case 1:
-            strcpy(month_id, "Feb");
-        break;
-        case 2:
-            strcpy(month_id, "Mar");
-        break;
-        case 3:
-            strcpy(month_id, "Apr");
-        break;
-        case 4:
-            strcpy(month_id, "May");
-        break;
-        case 5:
-            strcpy(month_id, "Jun");
-        break;
-        case 6:
-            strcpy(month_id, "Jul");
-        break;
-        case 7:
-            strcpy(month_id, "Aug");
-        break;
-        case 8:
-            strcpy(month_id, "Sep");
-        break;
-        case 9:
-            strcpy(month_id, "Oct");
-        break;
-        case 10:
-            strcpy(month_id, "Nov");
-        break;
-        case 11:
-            strcpy(month_id, "Dec");
-        break;
-    }
-    header_tmp = (char *) stcp_http_content_generator(128,
+    memcpy(&tm_access, gmtime(&stcp_time_access), sizeof(tm_access));
+
+    _stcpWI->server_header = (char *) stcp_http_str_append(
+     _stcpWI->server_header,
+     128,
+     0,
      "HTTP/1.1 %s\r\n"
      "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n"
      "Content-Type: %s\r\n"
@@ -1186,26 +1148,20 @@ int8_t stcp_http_webserver_generate_header(
      "Accept: %s\r\n"
      "Vary: Accept-Encoding\r\n",
      _response_header,
-     day_id, tm_access->tm_mday, month_id, (tm_access->tm_year + 1900), tm_access->tm_hour, tm_access->tm_min, tm_access->tm_sec,
+     stcp_day_str[tm_access.tm_wday],
+     tm_access.tm_mday,
+     stcp_mon_str[tm_access.tm_mon],
+     (tm_access.tm_year + 1900),
+     tm_access.tm_hour,
+     tm_access.tm_min,
+     tm_access.tm_sec,
      _content_type,
      _acception_type
     );
-    if (header_tmp == NULL){
-        stcp_debug(__func__, STCP_DEBUG_ERROR, "failed to generate webserver header\n");
-        return 0x01;
-    }
-    if (_content_length > 0){
-        header_tmp = (char *) stcp_http_str_append(header_tmp,
-         (unsigned short) 32,
-         (unsigned short) 0,
-         "Content-Length: %i\r\n",
-         _content_length
-        );
-    }
     if (memcmp(_stcpWI->rcv_header + _stcpWI->rcv_connection_type.stcp_sub_pos, "keep-alive", 10) == 0 &&
      _content_length > 0
     ){
-        header_tmp = (char *) stcp_http_str_append(header_tmp,
+        _stcpWI->server_header = (char *) stcp_http_str_append(_stcpWI->server_header,
          (unsigned short) 32,
          (unsigned short) 26,
          "Connection: keep-alive\r\n"
@@ -1213,19 +1169,13 @@ int8_t stcp_http_webserver_generate_header(
         );
     }
     else {
-        header_tmp = (char *) stcp_http_str_append(header_tmp,
+        _stcpWI->server_header = (char *) stcp_http_str_append(_stcpWI->server_header,
          (unsigned short) 32,
          (unsigned short) 26,
          "Connection: close\r\n"
          "\r\n"
         );
     }
-    _stcpWI->server_header = (char *) realloc(_stcpWI->server_header, (strlen(header_tmp) + 1)*sizeof(char));
-    strcpy(_stcpWI->server_header, header_tmp);
-
-    free(header_tmp);
-    header_tmp = NULL;
-
     return 0x00;
 }
 
@@ -2143,6 +2093,7 @@ int8_t stcp_http_webserver(
 
     char response_code[32];
 
+    stcp_http_webserver_bzero(_stcpWI, _stcpWH);
     while (stcp_server_state == STCP_SERVER_RUNING){
         FD_ZERO(&readfds);   
         FD_SET(init_data.socket_f, &readfds);   
@@ -2277,7 +2228,6 @@ int8_t stcp_http_webserver(
                 stcp_bytes = 0;
                 stcp_size = 8;
                 idx_chr = 0;
-                stcp_http_webserver_bzero(_stcpWI, _stcpWH);
                 proc_state = STCP_PROCESS_GET_HEADER;
                 for(idx_shat = 0; idx_shat < sizeof(slow_http_attack_handler.shat_counter_record); idx_shat++){
                     if (slow_http_attack_handler.shat_counter_record[idx_shat] > stcp_setup_data.stcp_slow_http_attack_counter_accepted){
@@ -2600,6 +2550,7 @@ int8_t stcp_http_webserver(
                     init_data.connection_f = 0;
                     keep_alive_cnt[idx_client] = 0;
                 stcp_next:
+                    stcp_http_webserver_bzero(_stcpWI, _stcpWH);
                     client_fd[idx_client] = init_data.connection_f;
             }
         }
