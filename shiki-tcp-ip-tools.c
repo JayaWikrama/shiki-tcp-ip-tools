@@ -959,32 +959,23 @@ static inline void stcp_http_webserver_print_segment(unsigned char *_header, stc
     }
 }
 
-static unsigned long long stcp_get_partial_length(char *_text_source){
-    char *buff_info = NULL;
-    do {
-        buff_info = (char *) malloc(17*sizeof(char));
-        if (buff_info == NULL){
-            #ifdef __STCP_DEBUG__
-            stcp_debug(__func__, STCP_DEBUG_WARNING, "failed to allocate memory\n");
-            #endif
-            usleep(1000);
-        }
-    } while (buff_info == NULL);
-    char buff_data[10];
+static unsigned long long stcp_get_partial_length(const char *_text_source){
+    static char buff_info[17];
+    static char buff_data[10];
     int16_t i=0;
-    for (i=0; i<(strlen(_text_source) - strlen("Range: bytes=")); i++){
-        memset(buff_info, 0x00, 17*sizeof(char));
+    size_t source_length = strlen(_text_source);
+    for (i=0; i<(source_length - 13); i++){
+        memset(buff_info, 0x00, sizeof(buff_info));
         int8_t j=0;
-        for (j=0; j<strlen("Range: bytes="); j++){
+        for (j=0; j<13; j++){
             buff_info[j] = _text_source[i + j];
         }
         if (strcmp(buff_info, "Range: bytes=") == 0){
-            i = i + strlen("Range: bytes=");
-            memset(buff_data, 0x00, 7*sizeof(char));
+            i = i + 13;
+            memset(buff_data, 0x00, sizeof(buff_data));
             int8_t j = 0;
             for (j=0; j<9; j++){
                 if (j>0 && (_text_source[i + j] < '0' || _text_source[i + j] > '9')){
-                    free(buff_info);
                     return (unsigned long long) atoll(buff_data);
                 }
                 else if (_text_source[i + j] >= '0' && _text_source[i + j] <= '9'){
@@ -993,8 +984,6 @@ static unsigned long long stcp_get_partial_length(char *_text_source){
             }
         }
     }
-    free(buff_info);
-    buff_info = NULL;
     return 0;
 }
 
