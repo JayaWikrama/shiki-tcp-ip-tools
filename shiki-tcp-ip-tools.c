@@ -60,6 +60,7 @@ typedef enum {
 } stcp_const;
 
 struct stcp_setup_var{
+    int8_t stcp_lock_setup;
     int8_t stcp_debug_mode;
     int8_t stcp_retry_mode;
     uint8_t stcp_max_recv_try;
@@ -82,6 +83,7 @@ struct stcp_setup_var{
 };
 
 struct stcp_setup_var stcp_setup_data = {
+    0x00,
     STCP_DEBUG_OFF,
     WITHOUT_RETRY,
     3,
@@ -326,6 +328,10 @@ void stcp_view_version(){
 }
 
 int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
+    if (stcp_setup_data.stcp_lock_setup){
+        stcp_debug(__func__, STCP_DEBUG_WARNING, "SETUP LOCKED!!!\n");
+        return 0x02;
+    }
     if (_setup_parameter == STCP_SET_TIMEOUT_IN_SEC){
         if (_value < 0 || _value > 999){
             #ifdef __STCP_DEBUG_SETUP__
@@ -458,6 +464,14 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
         return 0x01;
     }
     return 0x00;
+}
+
+void stcp_lock_setup(){
+    stcp_setup_data.stcp_lock_setup = 0x01;
+}
+
+void stcp_unlock_setup(){
+    stcp_setup_data.stcp_lock_setup = 0x00;
 }
 
 #ifdef __STCP_SSL__

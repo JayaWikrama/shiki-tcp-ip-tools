@@ -155,6 +155,8 @@ void stcp_debug(const char *_function_name, stcp_debug_type _debug_type, const c
 void stcp_view_version();
 long stcp_get_version(char *_version);
 int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value);
+void stcp_lock_setup();
+void stcp_unlock_setup();
 
 #ifdef __STCP_SSL__
 int8_t stcp_ssl_add_certkey(stcp_ssl_certkey_type _type, char *_host, char *_certkey);
