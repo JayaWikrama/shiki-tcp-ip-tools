@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.13.20.08.13
+    ver         : 3.14.20.08.24
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -66,11 +66,14 @@ struct stcp_setup_var{
     uint8_t stcp_max_recv_try;
     uint16_t stcp_timeout_sec;
     uint16_t stcp_timeout_millisec;
-    uint16_t stcp_keepalive_sec;
-    uint16_t stcp_keepalive_millisec;
     uint32_t stcp_size_per_recv;
     uint32_t stcp_size_per_send;
-    #ifdef __STCP_WEBSERVER__
+};
+
+#ifdef __STCP_WEBSERVER__
+struct stcp_webserver_setup_var {
+    uint16_t stcp_keepalive_sec;
+    uint16_t stcp_keepalive_millisec;
     uint16_t stcp_max_elapsed_connection;
     uint16_t stcp_slow_http_attack_blocking_time;
     uint8_t stcp_slow_http_attack_counter_accepted;
@@ -79,8 +82,8 @@ struct stcp_setup_var{
     #ifdef __STCP_SSL__
     stcp_ssl_webserver_verify_mode stcp_sslw_verify_mode;
     #endif
-    #endif
 };
+#endif
 
 struct stcp_setup_var stcp_setup_data = {
     0x00,
@@ -89,12 +92,14 @@ struct stcp_setup_var stcp_setup_data = {
     3,
     0,
     0,
-    0,
-    0,
     128,
     128
-    #ifdef __STCP_WEBSERVER__
-    ,
+};
+
+#ifdef __STCP_WEBSERVER__
+struct stcp_webserver_setup_var stcp_webserver_setup_data = {
+    0,
+    0,
     60,
     300,
     3,
@@ -104,8 +109,8 @@ struct stcp_setup_var stcp_setup_data = {
     ,
     STCP_SSL_WEBSERVER_WITHOUT_VERIFY_CLIENT
     #endif
-    #endif
 };
+#endif
 
 #ifdef __STCP_SSL__
     SHLink stcp_certkey_collection = NULL;
@@ -334,48 +339,24 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
     }
     if (_setup_parameter == STCP_SET_TIMEOUT_IN_SEC){
         if (_value < 0 || _value > 999){
-            #ifdef __STCP_DEBUG_SETUP__
             stcp_debug(__func__, STCP_DEBUG_WARNING, "invalid value\n");
-            #endif
             return 0x01;
         }
         stcp_setup_data.stcp_timeout_sec = (uint16_t)_value;
     }
     else if (_setup_parameter == STCP_SET_TIMEOUT_IN_MILLISEC){
         if (_value < 0 || _value > 999){
-            #ifdef __STCP_DEBUG_SETUP__
             stcp_debug(__func__, STCP_DEBUG_WARNING, "invalid value\n");
-            #endif
             return 0x01;
         }
         stcp_setup_data.stcp_timeout_millisec = (uint16_t)_value;
-    }
-    else if (_setup_parameter == STCP_SET_KEEP_ALIVE_TIMEOUT_IN_SEC){
-        if (_value < 0 || _value > 30){
-            #ifdef __STCP_DEBUG_SETUP__
-            stcp_debug(__func__, STCP_DEBUG_WARNING, "invalid value\n");
-            #endif
-            return 0x01;
-        }
-        stcp_setup_data.stcp_keepalive_sec = (uint16_t)_value;
-    }
-    else if (_setup_parameter == STCP_SET_KEEP_ALIVE_TIMEOUT_IN_MILLISEC){
-        if (_value < 0 || _value > 999){
-            #ifdef __STCP_DEBUG_SETUP__
-            stcp_debug(__func__, STCP_DEBUG_WARNING, "invalid value\n");
-            #endif
-            return 0x01;
-        }
-        stcp_setup_data.stcp_keepalive_millisec = (uint16_t)_value;
     }
     else if (_setup_parameter == STCP_SET_DEBUG_MODE){
         if ((int8_t)_value == STCP_DEBUG_ON || (int8_t)_value == STCP_DEBUG_OFF){
             stcp_setup_data.stcp_debug_mode = (int8_t)_value;
         }
         else {
-            #ifdef __STCP_DEBUG_SETUP__
             stcp_debug(__func__, STCP_DEBUG_WARNING, "wrong value\n");
-            #endif
             return 0x01;
         }
     }
@@ -390,81 +371,91 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
             stcp_setup_data.stcp_retry_mode = (int8_t)_value;
         }
         else {
-            #ifdef __STCP_DEBUG_SETUP__
             stcp_debug(__func__, STCP_DEBUG_WARNING, "wrong value\n");
-            #endif
             return 0x01;
         }
     }
-    #ifdef __STCP_WEBSERVER__
-    else if (_setup_parameter == STCP_SET_MAX_ELAPSED_CONNECTION){
-        if (_value <= 0 || _value > 30000){
-            #ifdef __STCP_DEBUG_SETUP__
+    else {
+        stcp_debug(__func__, STCP_DEBUG_WARNING, "wrong parameters\n");
+        return 0x01;
+    }
+    return 0x00;
+}
+
+#ifdef __STCP_WEBSERVER__
+int8_t stcp_webserver_setup(stcp_webserver_setup_parameter _setup_parameter, uint32_t _value){
+    if (stcp_setup_data.stcp_lock_setup){
+        stcp_debug(__func__, STCP_DEBUG_WARNING, "SETUP LOCKED!!!\n");
+        return 0x02;
+    }
+    if (_setup_parameter == STCP_SET_KEEP_ALIVE_TIMEOUT_IN_SEC){
+        if (_value < 0 || _value > 30){
             stcp_debug(__func__, STCP_DEBUG_WARNING, "invalid value\n");
-            #endif
             return 0x01;
         }
-        stcp_setup_data.stcp_max_elapsed_connection = (uint16_t)_value;
+        stcp_webserver_setup_data.stcp_keepalive_sec = (uint16_t)_value;
+    }
+    else if (_setup_parameter == STCP_SET_KEEP_ALIVE_TIMEOUT_IN_MILLISEC){
+        if (_value < 0 || _value > 999){
+            stcp_debug(__func__, STCP_DEBUG_WARNING, "invalid value\n");
+            return 0x01;
+        }
+        stcp_webserver_setup_data.stcp_keepalive_millisec = (uint16_t)_value;
+    }
+    else if (_setup_parameter == STCP_SET_MAX_ELAPSED_CONNECTION){
+        if (_value <= 0 || _value > 30000){
+            stcp_debug(__func__, STCP_DEBUG_WARNING, "invalid value\n");
+            return 0x01;
+        }
+        stcp_webserver_setup_data.stcp_max_elapsed_connection = (uint16_t)_value;
     }
     else if (_setup_parameter == STCP_SET_SLOW_HTTP_ATTACK_BLOCKING_TIME){
         if (_value <= 2 || _value > 3000){
-            #ifdef __STCP_DEBUG_SETUP__
             stcp_debug(__func__, STCP_DEBUG_WARNING, "invalid value\n");
-            #endif
             return 0x01;
         }
-        stcp_setup_data.stcp_slow_http_attack_blocking_time = (uint16_t)_value;
+        stcp_webserver_setup_data.stcp_slow_http_attack_blocking_time = (uint16_t)_value;
     }
     else if (_setup_parameter == STCP_SET_SLOW_HTTP_ATTACK_COUNTER_ACCEPTED){
         if (_value <= 0 || _value > 64){
-            #ifdef __STCP_DEBUG_SETUP__
             stcp_debug(__func__, STCP_DEBUG_WARNING, "invalid value\n");
-            #endif
             return 0x01;
         }
-        stcp_setup_data.stcp_slow_http_attack_counter_accepted = (uint8_t)_value;
+        stcp_webserver_setup_data.stcp_slow_http_attack_counter_accepted = (uint8_t)_value;
     }
     else if (_setup_parameter == STCP_SET_MAX_RECEIVED_HEADER){
         if (_value <= 0 || _value > 10240){
-            #ifdef __STCP_DEBUG_SETUP__
             stcp_debug(__func__, STCP_DEBUG_WARNING, "invalid value\n");
-            #endif
             return 0x01;
         }
-        stcp_setup_data.stcp_max_received_header = (uint32_t)_value;
+        stcp_webserver_setup_data.stcp_max_received_header = (uint32_t)_value;
     }
     else if (_setup_parameter == STCP_SET_MAX_RECEIVED_DATA){
         if (_value <= 0 || _value > 4294967290){
-            #ifdef __STCP_DEBUG_SETUP__
             stcp_debug(__func__, STCP_DEBUG_WARNING, "invalid value\n");
-            #endif
             return 0x01;
         }
-        stcp_setup_data.stcp_max_received_data = (uint32_t)_value;
+        stcp_webserver_setup_data.stcp_max_received_data = (uint32_t)_value;
     }
     #ifdef __STCP_SSL__
     else if (_setup_parameter == STCP_SET_WEBSERVER_VERIFY_CERT_MODE){
         if ((int8_t)_value == STCP_SSL_WEBSERVER_WITHOUT_VERIFY_CLIENT ||
          (int8_t)_value == STCP_SSL_WEBSERVER_VERIFY_REMOTE_CLIENT){
-            stcp_setup_data.stcp_sslw_verify_mode = (int8_t)_value;
+            stcp_webserver_setup_data.stcp_sslw_verify_mode = (int8_t)_value;
         }
         else {
-            #ifdef __STCP_DEBUG_SETUP__
             stcp_debug(__func__, STCP_DEBUG_WARNING, "wrong value\n");
-            #endif
             return 0x01;
         }
     }
     #endif
-    #endif
     else {
-        #ifdef __STCP_DEBUG_SETUP__
         stcp_debug(__func__, STCP_DEBUG_WARNING, "wrong parameters\n");
-        #endif
         return 0x01;
     }
     return 0x00;
 }
+#endif
 
 void stcp_lock_setup(){
     stcp_setup_data.stcp_lock_setup = 0x01;
@@ -2039,7 +2030,7 @@ int8_t stcp_http_webserver(
                     stcp_debug(__func__, STCP_DEBUG_WARNING, "Private key does not match the public certificate\n");
                 }
             }
-            if(stcp_setup_data.stcp_sslw_verify_mode == STCP_SSL_WEBSERVER_VERIFY_REMOTE_CLIENT){
+            if(stcp_webserver_setup_data.stcp_sslw_verify_mode == STCP_SSL_WEBSERVER_VERIFY_REMOTE_CLIENT){
                 sslCertKey = NULL;
                 sslCertKey = stcp_ssl_get_cacert(ADDRESS, &certkeyType);
                 if (sslCertKey != NULL){
@@ -2129,9 +2120,9 @@ int8_t stcp_http_webserver(
             }
         }
 
-        if (stcp_setup_data.stcp_keepalive_sec > 0 || stcp_setup_data.stcp_keepalive_millisec > 0){
-            tv_timer.tv_sec = stcp_setup_data.stcp_keepalive_sec;
-            tv_timer.tv_usec = stcp_setup_data.stcp_keepalive_millisec * 1000;
+        if (stcp_webserver_setup_data.stcp_keepalive_sec > 0 || stcp_webserver_setup_data.stcp_keepalive_millisec > 0){
+            tv_timer.tv_sec = stcp_webserver_setup_data.stcp_keepalive_sec;
+            tv_timer.tv_usec = stcp_webserver_setup_data.stcp_keepalive_millisec * 1000;
             activity = select(max_sd + 1 , &readfds , NULL , NULL , &tv_timer);
         }
         else {
@@ -2204,14 +2195,14 @@ int8_t stcp_http_webserver(
             }
         }
         else if (stcp_server_state == STCP_SERVER_RUNING &&
-         (stcp_setup_data.stcp_keepalive_sec > 0 || stcp_setup_data.stcp_keepalive_millisec > 0)
+         (stcp_webserver_setup_data.stcp_keepalive_sec > 0 || stcp_webserver_setup_data.stcp_keepalive_millisec > 0)
         ){
             for (idx_client = 0; idx_client<MAX_CLIENT; idx_client++){
                 if (keep_alive_cnt[idx_client] > 0 && client_fd[idx_client] > 0){
                     gettimeofday(&tv_timer, NULL);
                     if ((keep_alive_cnt[idx_client] +
-                      (stcp_setup_data.stcp_keepalive_sec*1000) +
-                      stcp_setup_data.stcp_keepalive_millisec
+                      (stcp_webserver_setup_data.stcp_keepalive_sec*1000) +
+                      stcp_webserver_setup_data.stcp_keepalive_millisec
                      ) <=
                      ((tv_timer.tv_sec%60)*1000 + (tv_timer.tv_usec/1000))
                     ){
@@ -2250,9 +2241,9 @@ int8_t stcp_http_webserver(
                 idx_chr = 0;
                 proc_state = STCP_PROCESS_GET_HEADER;
                 for(idx_shat = 0; idx_shat < sizeof(slow_http_attack_handler.shat_counter_record); idx_shat++){
-                    if (slow_http_attack_handler.shat_counter_record[idx_shat] > stcp_setup_data.stcp_slow_http_attack_counter_accepted){
+                    if (slow_http_attack_handler.shat_counter_record[idx_shat] > stcp_webserver_setup_data.stcp_slow_http_attack_counter_accepted){
                         if (!memcmp(&(slow_http_attack_handler.shat_addr_record[idx_shat]), &client_addr[idx_client], sizeof(struct in_addr))){
-                            if (time(NULL) - slow_http_attack_handler.shat_time_record[idx_shat] < stcp_setup_data.stcp_slow_http_attack_blocking_time){
+                            if (time(NULL) - slow_http_attack_handler.shat_time_record[idx_shat] < stcp_webserver_setup_data.stcp_slow_http_attack_blocking_time){
                                 idx_shat = 99;
                                 break;
                             }
@@ -2263,7 +2254,7 @@ int8_t stcp_http_webserver(
                             }
                         }
                         else if (slow_http_attack_handler.shat_counter_record[idx_shat]){
-                            if (time(NULL) - slow_http_attack_handler.shat_time_record[idx_shat] >= stcp_setup_data.stcp_slow_http_attack_blocking_time){
+                            if (time(NULL) - slow_http_attack_handler.shat_time_record[idx_shat] >= stcp_webserver_setup_data.stcp_slow_http_attack_blocking_time){
                                 memset(&(slow_http_attack_handler.shat_addr_record[idx_shat]), 0x00, sizeof(struct in_addr));
                                 slow_http_attack_handler.shat_counter_record[idx_shat] = 0;
                                 slow_http_attack_handler.shat_time_record[idx_shat] = 0;
@@ -2272,7 +2263,7 @@ int8_t stcp_http_webserver(
                     }
                 }
                 while(stcp_server_state == STCP_SERVER_RUNING && idx_shat != 99){
-                    if ((time(NULL) - elapsed_connection_counter) > stcp_setup_data.stcp_max_elapsed_connection){
+                    if ((time(NULL) - elapsed_connection_counter) > stcp_webserver_setup_data.stcp_max_elapsed_connection){
                         break;
                     }
                     if (proc_state == STCP_PROCESS_GET_HEADER){
@@ -2293,7 +2284,7 @@ int8_t stcp_http_webserver(
                         else {
                             slow_http_attack_handler.shat_counter = 0;
                         }
-                        if (slow_http_attack_handler.shat_counter > stcp_setup_data.stcp_slow_http_attack_counter_accepted){
+                        if (slow_http_attack_handler.shat_counter > stcp_webserver_setup_data.stcp_slow_http_attack_counter_accepted){
                             for(idx_shat = 0; idx_shat < sizeof(slow_http_attack_handler.shat_counter_record); idx_shat++){
                                 if (slow_http_attack_handler.shat_counter_record[idx_shat] == 0){
                                     memcpy(&(slow_http_attack_handler.shat_addr_record[idx_shat]), &client_addr[idx_client], sizeof(struct in_addr));
@@ -2314,8 +2305,8 @@ int8_t stcp_http_webserver(
                             else if (keep_alive_cnt[idx_client] > 0){
                                 gettimeofday(&tv_timer, NULL);
                                 if ((keep_alive_cnt[idx_client] +
-                                  (stcp_setup_data.stcp_keepalive_sec*1000) +
-                                  stcp_setup_data.stcp_keepalive_millisec
+                                  (stcp_webserver_setup_data.stcp_keepalive_sec*1000) +
+                                  stcp_webserver_setup_data.stcp_keepalive_millisec
                                  ) <=
                                  ((tv_timer.tv_sec%60)*1000 + (tv_timer.tv_usec/1000))
                                 ){
@@ -2342,7 +2333,7 @@ int8_t stcp_http_webserver(
                                     goto stcp_func;
                                 }
                                 idx_chr += stcp_bytes - 1;
-                                if (idx_chr > stcp_setup_data.stcp_max_received_data){
+                                if (idx_chr > stcp_webserver_setup_data.stcp_max_received_data){
                                     goto stcp_func;
                                 }
                             }
@@ -2373,7 +2364,7 @@ int8_t stcp_http_webserver(
                                     idx_chr++;
                                     stcp_bytes--;
                                 } while (stcp_bytes >= 0);
-                                if (idx_chr > stcp_setup_data.stcp_max_received_header){
+                                if (idx_chr > stcp_webserver_setup_data.stcp_max_received_header){
                                     break;
                                 }
                             }
@@ -2403,7 +2394,7 @@ int8_t stcp_http_webserver(
                         else {
                             slow_http_attack_handler.shat_counter = 0;
                         }
-                        if (slow_http_attack_handler.shat_counter > stcp_setup_data.stcp_slow_http_attack_counter_accepted){
+                        if (slow_http_attack_handler.shat_counter > stcp_webserver_setup_data.stcp_slow_http_attack_counter_accepted){
                             for(idx_shat = 0; idx_shat < sizeof(slow_http_attack_handler.shat_counter_record); idx_shat++){
                                 if (slow_http_attack_handler.shat_counter_record[idx_shat] == 0){
                                     memcpy(&(slow_http_attack_handler.shat_addr_record[idx_shat]), &client_addr[idx_client], sizeof(struct in_addr));
@@ -2431,7 +2422,7 @@ int8_t stcp_http_webserver(
                             idx_chr = idx_chr + stcp_bytes;
                             _stcpWI->rcv_content[idx_chr] = 0x00;
 
-                            if (idx_chr > stcp_setup_data.stcp_max_received_data){
+                            if (idx_chr > stcp_webserver_setup_data.stcp_max_received_data){
                                 break;
                             }
                         }
@@ -2532,8 +2523,8 @@ int8_t stcp_http_webserver(
 
                 stcp_connection_check:
                     if (strstr(_stcpWI->server_header, "keep-alive") != NULL &&
-                     (stcp_setup_data.stcp_keepalive_sec > 0 ||
-                     stcp_setup_data.stcp_keepalive_millisec > 0)
+                     (stcp_webserver_setup_data.stcp_keepalive_sec > 0 ||
+                     stcp_webserver_setup_data.stcp_keepalive_millisec > 0)
                     ){
                         gettimeofday(&tv_timer, NULL);
                         keep_alive_cnt[idx_client] = (uint16_t) ((tv_timer.tv_sec%60)*1000 + (tv_timer.tv_usec/1000));

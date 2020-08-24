@@ -21,7 +21,7 @@
     STCP_SSL_KEY_TYPE_FILE = 0x02,
     STCP_SSL_KEY_TYPE_TEXT = 0x03,
     STCP_SSL_CACERT_TYPE_FILE = 0x04,
-    STCP_SSL_CACERT_TYPE_TEXT = 0x05,
+    STCP_SSL_CACERT_TYPE_TEXT = 0x05
   } stcp_ssl_certkey_type;
 #endif
 
@@ -133,11 +133,13 @@ typedef enum{
   STCP_SET_DEBUG_MODE = 2,
   STCP_SET_SIZE_PER_RECV = 3,
   STCP_SET_SIZE_PER_SEND = 4,
-  STCP_SET_KEEP_ALIVE_TIMEOUT_IN_SEC = 5,
-  STCP_SET_KEEP_ALIVE_TIMEOUT_IN_MILLISEC = 6,
-  STCP_SET_INFINITE_MODE_RETRY = 7
-  #ifdef __STCP_WEBSERVER__
-  ,
+  STCP_SET_INFINITE_MODE_RETRY = 5
+} stcp_setup_parameter;
+
+#ifdef __STCP_WEBSERVER__
+typedef enum{
+  STCP_SET_KEEP_ALIVE_TIMEOUT_IN_SEC = 6,
+  STCP_SET_KEEP_ALIVE_TIMEOUT_IN_MILLISEC = 7,
   STCP_SET_MAX_ELAPSED_CONNECTION = 80,
   STCP_SET_SLOW_HTTP_ATTACK_BLOCKING_TIME = 81,
   STCP_SET_SLOW_HTTP_ATTACK_COUNTER_ACCEPTED = 82,
@@ -147,14 +149,17 @@ typedef enum{
   ,
   STCP_SET_WEBSERVER_VERIFY_CERT_MODE = 99
   #endif
-  #endif
-} stcp_setup_parameter;
+} stcp_webserver_setup_parameter;
+#endif
 
 void stcp_debug(const char *_function_name, stcp_debug_type _debug_type, const char *_debug_msg, ...);
 
 void stcp_view_version();
 long stcp_get_version(char *_version);
 int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value);
+#ifdef __STCP_WEBSERVER__
+int8_t stcp_webserver_setup(stcp_webserver_setup_parameter _setup_parameter, uint32_t _value);
+#endif
 void stcp_lock_setup();
 void stcp_unlock_setup();
 
