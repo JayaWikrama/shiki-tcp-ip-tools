@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.14.20.08.24
+    ver         : 3.15.20.08.25
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -39,7 +39,7 @@
     #include <netinet/ip_icmp.h>
 #endif
 #define SA struct sockaddr
-#define STCP_VER "3.13.20.08.13"
+#define STCP_VER "3.15.20.08.25"
 
 typedef enum {
     #ifdef __STCP_WEBSERVER__
@@ -1148,6 +1148,7 @@ int8_t stcp_http_webserver_generate_header(
     time(&stcp_time_access);
     memcpy(&tm_access, gmtime(&stcp_time_access), sizeof(tm_access));
 
+    _stcpWI->server_header[0] = 0x00;
     _stcpWI->server_header = (char *) stcp_http_str_append(
      _stcpWI->server_header,
      128,
