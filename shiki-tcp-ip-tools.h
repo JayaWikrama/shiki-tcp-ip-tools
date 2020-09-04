@@ -197,7 +197,13 @@ int8_t stcp_http_webserver_set_accept(stcpWHead *_stcpWH, char *_accept);
 int8_t stcp_http_webserver(char *ADDRESS, uint16_t PORT, uint16_t MAX_CLIENT, stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList _stcpWList);
 
 int8_t stcp_http_webserver_generate_header(stcpWInfo *_stcpWI, char *_response_header, char *_content_type, char *_acception_type, uint64_t _content_length);
-char *stcp_http_webserver_generate_full_response(stcpWInfo *_stcpWI, char *_response_header, char *_content_type, char *_acception_type, char *_content);
+char *stcp_http_webserver_generate_full_response(
+ stcpWInfo *_stcpWI,
+ char *_response_header,
+ char *_content_type,
+ char *_acception_type,
+ char *_content_with_malloc /* memory allocation will be free by function */
+);
 int8_t stcp_http_webserver_send_file(stcpSock _init_data, stcpWInfo *_stcpWI, stcpWHead *_stcpWH, char *_response_code, char *_file_name);
 void stcp_http_webserver_stop();
 #endif
