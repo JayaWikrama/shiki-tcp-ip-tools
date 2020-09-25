@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.15.20.08.25
+    ver         : 3.17.20.09.25
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -39,7 +39,7 @@
     #include <netinet/ip_icmp.h>
 #endif
 #define SA struct sockaddr
-#define STCP_VER "3.15.20.08.25"
+#define STCP_VER "3.17.20.09.25"
 
 typedef enum {
     #ifdef __STCP_WEBSERVER__
@@ -149,8 +149,8 @@ static const char *stcp_mon_str[] = {
 char stcp_file_name[STCP_MAX_LENGTH_FILE_NAME];
 #endif
 
-static int8_t stcp_check_ip(char *_ip_address);
-static unsigned long stcp_get_content_length(char *_text_source);
+static int8_t stcp_check_ip(const char *_ip_address);
+static unsigned long stcp_get_content_length(const char *_text_source);
 static unsigned char *stcp_select_content(unsigned char *response, uint32_t _content_length);
 
 inline void stcp_debug(const char *_function_name, stcp_debug_type _debug_type, const char *_debug_msg, ...){
@@ -265,7 +265,7 @@ static int8_t stcp_connect_with_timeout (
 }
 #endif
 
-static int8_t stcp_check_ip(char *_ip_address){
+static int8_t stcp_check_ip(const char *_ip_address){
     /* check length */
     if (strlen(_ip_address) > 15){
         return 0x01;
@@ -466,7 +466,7 @@ void stcp_unlock_setup(){
 }
 
 #ifdef __STCP_SSL__
-int8_t stcp_ssl_add_certkey(stcp_ssl_certkey_type _type, char *_host, char *_certkey){
+int8_t stcp_ssl_add_certkey(stcp_ssl_certkey_type _type, const char *_host, const char *_certkey){
     if (_type < STCP_SSL_CERT_TYPE_FILE || _type > STCP_SSL_CACERT_TYPE_TEXT){
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, STCP_DEBUG_WARNING, "wrong parameters\n");
@@ -528,7 +528,7 @@ int8_t stcp_ssl_add_certkey(stcp_ssl_certkey_type _type, char *_host, char *_cer
     return 0x00;
 }
 
-int8_t stcp_ssl_remove_certkey(stcp_ssl_certkey_type _type, char *_host, char *_certkey){
+int8_t stcp_ssl_remove_certkey(stcp_ssl_certkey_type _type, const char *_host, const char *_certkey){
     if (_type < STCP_SSL_CERT_TYPE_FILE || _type > STCP_SSL_CACERT_TYPE_TEXT){
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, STCP_DEBUG_WARNING, "wrong parameters\n");
@@ -590,7 +590,7 @@ int8_t stcp_ssl_remove_certkey(stcp_ssl_certkey_type _type, char *_host, char *_
     return 0;
 }
 
-unsigned char *stcp_ssl_get_cert(char *_host, stcp_ssl_certkey_type *_type){
+unsigned char *stcp_ssl_get_cert(const char *_host, stcp_ssl_certkey_type *_type){
     SHLinkCustomData sslcertres;
     char buff[15 + strlen(_host)];
     memset(buff, 0x00, sizeof(buff));
@@ -626,7 +626,7 @@ unsigned char *stcp_ssl_get_cert(char *_host, stcp_ssl_certkey_type *_type){
     return NULL;
 }
 
-unsigned char *stcp_ssl_get_key(char *_host, stcp_ssl_certkey_type *_type){
+unsigned char *stcp_ssl_get_key(const char *_host, stcp_ssl_certkey_type *_type){
     SHLinkCustomData sslcertres;
     char buff[15 + strlen(_host)];
     memset(buff, 0x00, sizeof(buff));
@@ -662,7 +662,7 @@ unsigned char *stcp_ssl_get_key(char *_host, stcp_ssl_certkey_type *_type){
     return NULL;
 }
 
-unsigned char *stcp_ssl_get_cacert(char *_host, stcp_ssl_certkey_type *_type){
+unsigned char *stcp_ssl_get_cacert(const char *_host, stcp_ssl_certkey_type *_type){
     SHLinkCustomData sslcertres;
     char buff[15 + strlen(_host)];
     memset(buff, 0x00, sizeof(buff));
@@ -717,7 +717,7 @@ int8_t stcp_set_download_file_name(char* _file_name){
 }
 #endif
 
-stcpSock stcp_server_init(char *ADDRESS, uint16_t PORT){
+stcpSock stcp_server_init(const char *ADDRESS, uint16_t PORT){
     stcpSock init_data;
     init_data.socket_f = 0;
     init_data.connection_f = 0;
@@ -1138,9 +1138,9 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
 
 int8_t stcp_http_webserver_generate_header(
  stcpWInfo *_stcpWI,
- char *_response_header,
- char *_content_type,
- char *_acception_type,
+ const char *_response_header,
+ const char *_content_type,
+ const char *_acception_type,
  uint64_t _content_length
 ){
     time_t stcp_time_access = 0;
@@ -1155,6 +1155,7 @@ int8_t stcp_http_webserver_generate_header(
      0,
      "HTTP/1.1 %s\r\n"
      "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n"
+     "Access-Control-Allow-Origin: *\r\n"
      "Content-Type: %s\r\n"
      "Server: stcp-webservice\r\n"
      "Accept: %s\r\n"
@@ -1204,9 +1205,9 @@ int8_t stcp_http_webserver_generate_header(
 
 char *stcp_http_webserver_generate_full_response(
  stcpWInfo *_stcpWI,
- char *_response_header,
- char *_content_type,
- char *_acception_type,
+ const char *_response_header,
+ const char *_content_type,
+ const char *_acception_type,
  char *_content_with_malloc /* memory allocation will be free by function */
 ){
     if (_content_with_malloc == NULL){
@@ -1237,7 +1238,7 @@ char *stcp_http_webserver_generate_full_response(
 int8_t stcp_http_webserver_add_negative_code_response(
  stcpWList *_stcpWList,
  stcp_webserver_negative_code _code_param,
- char *_response_content
+ const char *_response_content
 ){
     SHLinkCustomData _data;
     char data_key[4];
@@ -1281,9 +1282,9 @@ int8_t stcp_http_webserver_add_negative_code_response(
 
 int8_t stcp_http_webserver_add_response(
  stcpWList *_stcpWList,
- char *_end_point,
- char *_response_content,
- char *_request_method
+ const char *_end_point,
+ const char *_response_content,
+ const char *_request_method
 ){
     SHLinkCustomData _data;
     char data_key[strlen(_end_point) + strlen(_request_method) + 1];
@@ -1314,9 +1315,9 @@ int8_t stcp_http_webserver_add_response(
 
 int8_t stcp_http_webserver_add_response_file(
  stcpWList *_stcpWList,
- char *_end_point,
- char *_response_file,
- char *_request_method
+ const char *_end_point,
+ const char *_response_file,
+ const char *_request_method
 ){
     SHLinkCustomData _data;
     char data_key[strlen(_end_point) + strlen(_request_method) + 1];
@@ -1350,9 +1351,9 @@ int8_t stcp_http_webserver_add_response_file(
 
 int8_t stcp_http_webserver_add_response_callback(
  stcpWList *_stcpWList,
- char *_end_point,
- void *_response_function,
- char *_request_method
+ const char *_end_point,
+ const void *_response_function,
+ const char *_request_method
 ){
     SHLinkCustomData _data;
     char data_key[strlen(_end_point) + strlen(_request_method) + 1];
@@ -1387,9 +1388,9 @@ int8_t stcp_http_webserver_add_response_callback(
 
 int8_t stcp_http_webserver_add_tcp_response_callback(
  stcpWList *_stcpWList,
- unsigned char *_start_bits,
+ const unsigned char *_start_bits,
  uint16_t _start_bits_size,
- void *_response_function
+ const void *_response_function
 ){
     SHLinkCustomData _data;
     char data_value[10 + sizeof(void *)];
@@ -1419,10 +1420,14 @@ int8_t stcp_http_webserver_add_tcp_response_callback(
     return 0x00;
 }
 
-unsigned char *stcp_http_webserver_select_response(stcpWInfo *_stcpWI, stcpWList _stcpWList, char *_respons_code){
+unsigned char *stcp_http_webserver_select_response(
+ stcpWInfo *_stcpWI,
+ stcpWList _stcpWList,
+ char *_respons_code
+){
     SHLinkCustomData _data;
 
-    char data_key[_stcpWI->request.stcp_sub_size + _stcpWI->rcv_endpoint.stcp_sub_size + 1];
+    char data_key[_stcpWI->request.stcp_sub_size + _stcpWI->rcv_endpoint.stcp_sub_size + 8];
     memset(data_key, 0x00, sizeof(data_key));
     memcpy(data_key,
      _stcpWI->rcv_header + _stcpWI->request.stcp_sub_pos,
@@ -1608,13 +1613,19 @@ unsigned char *stcp_http_webserver_select_tcp_response(unsigned char *_tcp_recei
     return NULL;
 }
 
-int8_t stcp_http_webserver_set_content_type(stcpWHead *_stcpWH, char *_content_type){
+int8_t stcp_http_webserver_set_content_type(
+ stcpWHead *_stcpWH,
+ const char *_content_type
+){
     _stcpWH->content_type = (char *) realloc(_stcpWH->content_type, (strlen(_content_type) + 1)*sizeof(char));
     strcpy(_stcpWH->content_type, _content_type);
     return 0x00;
 }
 
-int8_t stcp_http_webserver_set_accept(stcpWHead *_stcpWH, char *_accept){
+int8_t stcp_http_webserver_set_accept(
+ stcpWHead *_stcpWH,
+ const char *_accept
+){
     _stcpWH->accept_type = (char *) realloc(_stcpWH->accept_type, (strlen(_accept) + 1)*sizeof(char));
     strcpy(_stcpWH->accept_type, _accept);
     return 0x00;
@@ -1623,8 +1634,8 @@ int8_t stcp_http_webserver_set_accept(stcpWHead *_stcpWH, char *_accept){
 int8_t stcp_http_webserver_send_file(stcpSock _init_data,
  stcpWInfo *_stcpWI,
  stcpWHead *_stcpWH,
- char *_response_code,
- char *_file_name
+ const char *_response_code,
+ const char *_file_name
 ){
     #ifdef __STCP_DEBUG__
     stcp_debug(__func__, STCP_DEBUG_INFO, "file name: %s\n", _file_name);
@@ -1843,7 +1854,7 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data,
 
 static int8_t stcp_http_webserver_callback(
  stcpSock _init_data,
- void *_function (),
+ const void *_function (),
  stcpWInfo *_stcpWI,
  stcpWHead *_stcpWH,
  stcpWList _stcpWList
@@ -1854,7 +1865,7 @@ static int8_t stcp_http_webserver_callback(
 }
 
 int8_t stcp_http_webserver(
- char *ADDRESS,
+ const char *ADDRESS,
  uint16_t PORT,
  uint16_t MAX_CLIENT,
  stcpWInfo *_stcpWI,
@@ -2614,7 +2625,10 @@ void stcp_http_webserver_stop(){
 #endif
 
 #ifndef __STCP_DONT_USE_CLIENT__
-stcpSock stcp_client_init(char *ADDRESS, uint16_t PORT){
+stcpSock stcp_client_init(
+ const char *ADDRESS,
+ uint16_t PORT
+){
     stcpSock init_data;
     init_data.socket_f = 0;
     init_data.connection_f = 0;
@@ -2681,7 +2695,10 @@ stcpSock stcp_client_init(char *ADDRESS, uint16_t PORT){
 }
 
 #ifdef __STCP_SSL__
-stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
+stcpSock stcp_ssl_client_init(
+ const char *ADDRESS,
+ uint16_t PORT
+){
     stcpSock init_data;
     init_data.socket_f = 0;
     init_data.connection_f = 0;
@@ -2837,7 +2854,7 @@ stcpSock stcp_ssl_client_init(char *ADDRESS, uint16_t PORT){
 }
 #endif
 
-long stcp_get_file_size(char *_file_name){
+long stcp_get_file_size(const char *_file_name){
     #ifdef __STCP_DEBUG__
     stcp_debug(__func__, STCP_DEBUG_INFO, "file name: %s\n", _file_name);
     #endif
@@ -2870,7 +2887,11 @@ long stcp_get_file_size(char *_file_name){
     return content_size;
 }
 
-static int8_t stcp_socket_send_file(stcpSock _init_data, char *_file_name, int8_t _socket_type){
+static int8_t stcp_socket_send_file(
+ stcpSock _init_data,
+ const char *_file_name,
+ int8_t _socket_type
+){
     #ifdef __STCP_DEBUG__
     stcp_debug(__func__, STCP_DEBUG_INFO, "file name: %s\n", _file_name);
     #endif
@@ -2970,18 +2991,18 @@ static int8_t stcp_socket_send_file(stcpSock _init_data, char *_file_name, int8_
     return 0x00;
 }
 
-int8_t stcp_send_file(stcpSock _init_data, char *_file_name){
+int8_t stcp_send_file(stcpSock _init_data, const char *_file_name){
     return stcp_socket_send_file(_init_data, _file_name, STCP_TCP);
 }
 
 #ifdef __STCP_SSL__
-int8_t stcp_ssl_send_file(stcpSock _init_data, char *_file_name){
+int8_t stcp_ssl_send_file(stcpSock _init_data, const char *_file_name){
     return stcp_socket_send_file(_init_data, _file_name, STCP_SSL);
 }
 #endif
 #endif
 
-int32_t stcp_send_data(stcpSock _init_data, unsigned char* buff, int32_t size_set){
+int32_t stcp_send_data(stcpSock _init_data, const unsigned char* buff, int32_t size_set){
     int32_t bytes;
     int32_t bytes_aviable = 0;
     uint16_t timeout_cstart = 0;
@@ -3032,7 +3053,7 @@ int32_t stcp_recv_data(stcpSock _init_data, unsigned char* buff, int32_t size_se
 }
 
 #ifdef __STCP_SSL__
-int32_t stcp_ssl_send_data(stcpSock _init_data, unsigned char* buff, int32_t size_set){
+int32_t stcp_ssl_send_data(stcpSock _init_data, const unsigned char* buff, int32_t size_set){
     int32_t bytes;
     int32_t bytes_aviable = 0;
     uint16_t timeout_cstart = 0;
@@ -3084,7 +3105,7 @@ int32_t stcp_ssl_recv_data(stcpSock _init_data, unsigned char* buff, int32_t siz
 #endif
 
 #ifndef __STCP_DONT_USE_CLIENT__
-int8_t stcp_url_parser(char *_url, int8_t *_protocol, stcpSHead *_host, stcpSHead *_end_point, uint16_t *_port){
+int8_t stcp_url_parser(const char *_url, int8_t *_protocol, stcpSHead *_host, stcpSHead *_end_point, uint16_t *_port){
     if (strncmp(_url, "http://", 7) == 0 || strncmp(_url, "https://", 8) == 0){
         stcpSHead sub_tmp;
         char *buff = NULL;
@@ -3158,7 +3179,7 @@ int8_t stcp_url_parser(char *_url, int8_t *_protocol, stcpSHead *_host, stcpSHea
 }
 #endif
 
-char *stcp_http_content_generator(unsigned short _size_per_allocate, char *_str_format, ...){
+char *stcp_http_content_generator(unsigned short _size_per_allocate, const char *_str_format, ...){
 	va_list ar;
 	/* var list */
 	char *s = NULL;
@@ -3289,10 +3310,11 @@ char *stcp_http_content_generator(unsigned short _size_per_allocate, char *_str_
 	return buff_result;
 }
 
-char *stcp_http_str_append(char *_buff_source,
+char *stcp_http_str_append(
+ char *_buff_source,
  unsigned short _size_per_allocate,
  unsigned short _append_size,
- char *_str_format, ...
+ const char *_str_format, ...
 ){
 	char *buff_result = NULL;
 	unsigned short result_size = _size_per_allocate;
@@ -3450,7 +3472,11 @@ char *stcp_http_str_append(char *_buff_source,
 }
 
 #ifndef __STCP_DONT_USE_CLIENT__
-unsigned char *stcp_http_generate_multipart_header(char *_stcp_multipart_header_input, char *_boundary_output, uint16_t *_length_part){
+unsigned char *stcp_http_generate_multipart_header(
+ const char *_stcp_multipart_header_input,
+ char *_boundary_output,
+ uint16_t *_length_part
+){
     /* style: general_header_end_with_multipart/from-data|form_data_1|form_data_2|...|file */
     /* boundary style : --stcpmboundaryxxxxxxxxxxxx */
     unsigned char *output_header = NULL;
@@ -3614,7 +3640,13 @@ unsigned char *stcp_http_generate_multipart_header(char *_stcp_multipart_header_
     return output_header;
 }
 
-unsigned char *stcp_http_request(char *_req_type, char *_url, char *_header, char *_content, stcp_request_type _request_type){
+unsigned char *stcp_http_request(
+ const char *_req_type,
+ const char *_url,
+ const char *_header,
+ const char *_content,
+ stcp_request_type _request_type
+){
     long request_length = 0;
     if (_request_type != STCP_REQ_UPLOAD_FILE){
         if (_content != NULL){
@@ -4204,7 +4236,7 @@ void stcp_ssl_close(stcpSock *init_data){
 }
 #endif
 
-static unsigned long stcp_get_content_length(char *_text_source){
+static unsigned long stcp_get_content_length(const char *_text_source){
     char *buff_info;
     do {
         buff_info = (char *) malloc(17*sizeof(char));
@@ -4243,7 +4275,10 @@ static unsigned long stcp_get_content_length(char *_text_source){
     return 0;
 }
 
-static unsigned char *stcp_select_content(unsigned char *response, uint32_t _content_length){
+static unsigned char *stcp_select_content(
+ unsigned char *response,
+ uint32_t _content_length
+){
     if (_content_length == 0){
         free(response);
         response = NULL;
@@ -4290,7 +4325,7 @@ static unsigned short stcp_checksum(void *b, int len){
 	return result; 
 } 
 
-struct stcp_ping_summary stcp_ping(char *ADDRESS, uint16_t NUM_OF_PING){
+struct stcp_ping_summary stcp_ping(const char *ADDRESS, uint16_t NUM_OF_PING){
     stcpSock init_data;
     struct sockaddr_in servaddr;
 
