@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.17.20.09.25
+    ver         : 3.18.20.09.28
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -39,7 +39,7 @@
     #include <netinet/ip_icmp.h>
 #endif
 #define SA struct sockaddr
-#define STCP_VER "3.17.20.09.25"
+#define STCP_VER "3.18.20.09.28"
 
 typedef enum {
     #ifdef __STCP_WEBSERVER__
@@ -508,9 +508,9 @@ int8_t stcp_ssl_add_certkey(stcp_ssl_certkey_type _type, const char *_host, cons
     SHLinkCustomData certkey_additional_data;
     if (shilink_fill_custom_data(
      &certkey_additional_data,
-     (void *) buffkey,
+     (const void *) buffkey,
      (uint16_t) strlen(buffkey),
-     (void *) _certkey,
+     (const void *) _certkey,
      strlen(_certkey),
      SL_TEXT
     ) != 0){
@@ -570,9 +570,9 @@ int8_t stcp_ssl_remove_certkey(stcp_ssl_certkey_type _type, const char *_host, c
     SHLinkCustomData certkey_additional_data;
     if (shilink_fill_custom_data(
      &certkey_additional_data,
-     (void *) buffkey,
+     (const void *) buffkey,
      (uint16_t) strlen(buffkey),
-     (void *) _certkey,
+     (const void *) _certkey,
      strlen(_certkey),
      SL_TEXT
     ) != 0){
@@ -603,7 +603,7 @@ unsigned char *stcp_ssl_get_cert(const char *_host, stcp_ssl_certkey_type *_type
     sprintf(buff, "stcpsslcrtfile%s", _host);
     if (shilink_search_data_by_position(
      stcp_certkey_collection,
-     (void *) buff,
+     (const void *) buff,
      (uint16_t) strlen(buff),
      0,
      &sslcertres
@@ -615,7 +615,7 @@ unsigned char *stcp_ssl_get_cert(const char *_host, stcp_ssl_certkey_type *_type
     sprintf(buff, "stcpsslcrttext%s", _host);
     if (shilink_search_data_by_position(
      stcp_certkey_collection,
-     (void *) buff,
+     (const void *) buff,
      (uint16_t) strlen(buff),
      0,
      &sslcertres
@@ -639,7 +639,7 @@ unsigned char *stcp_ssl_get_key(const char *_host, stcp_ssl_certkey_type *_type)
     sprintf(buff, "stcpsslkeyfile%s", _host);
     if (shilink_search_data_by_position(
      stcp_certkey_collection,
-     (void *) buff,
+     (const void *) buff,
      (uint16_t) strlen(buff),
      0,
      &sslcertres
@@ -651,7 +651,7 @@ unsigned char *stcp_ssl_get_key(const char *_host, stcp_ssl_certkey_type *_type)
     sprintf(buff, "stcpsslkeytext%s", _host);
     if (shilink_search_data_by_position(
      stcp_certkey_collection,
-     (void *) buff,
+     (const void *) buff,
      (uint16_t) strlen(buff),
      0,
      &sslcertres
@@ -675,7 +675,7 @@ unsigned char *stcp_ssl_get_cacert(const char *_host, stcp_ssl_certkey_type *_ty
     sprintf(buff, "stcpsslcacfile%s", _host);
     if (shilink_search_data_by_position(
      stcp_certkey_collection,
-     (void *) buff,
+     (const void *) buff,
      (uint16_t) strlen(buff),
      0,
      &sslcertres
@@ -687,7 +687,7 @@ unsigned char *stcp_ssl_get_cacert(const char *_host, stcp_ssl_certkey_type *_ty
     sprintf(buff, "stcpsslcactext%s", _host);
     if (shilink_search_data_by_position(
      stcp_certkey_collection,
-     (void *) buff,
+     (const void *) buff,
      (uint16_t) strlen(buff),
      0,
      &sslcertres
@@ -1259,9 +1259,9 @@ int8_t stcp_http_webserver_add_negative_code_response(
     }
     if(shilink_fill_custom_data(
      &_data,
-     (void *) data_key,
+     (const void *) data_key,
      (uint16_t) strlen(data_key),
-     (void *) _response_content,
+     (const void *) _response_content,
      (uint16_t) strlen(_response_content),
      SL_TEXT
     ) != 0){
@@ -1292,9 +1292,9 @@ int8_t stcp_http_webserver_add_response(
     sprintf(data_key, "%s%s", _request_method, _end_point);
     if(shilink_fill_custom_data(
      &_data,
-     (void *) data_key,
+     (const void *) data_key,
      (uint16_t) strlen(data_key),
-     (void *) _response_content,
+     (const void *) _response_content,
      (uint16_t) strlen(_response_content),
      SL_TEXT
     ) != 0){
@@ -1328,9 +1328,9 @@ int8_t stcp_http_webserver_add_response_file(
     sprintf(data_value, "open_file:%s", _response_file);
     if(shilink_fill_custom_data(
      &_data,
-     (void *) data_key,
+     (const void *) data_key,
      (uint16_t) strlen(data_key),
-     (void *) data_value,
+     (const void *) data_value,
      (uint16_t) strlen(data_value),
      SL_TEXT
     ) != 0){
@@ -1365,9 +1365,9 @@ int8_t stcp_http_webserver_add_response_callback(
     memcpy(data_value + 9, &_response_function, sizeof(void *));
     if(shilink_fill_custom_data(
      &_data,
-     (void *) data_key,
+     (const void *) data_key,
      (uint16_t) strlen(data_key),
-     (void *) data_value,
+     (const void *) data_value,
      (uint16_t) (9 + sizeof(void *)),
      SL_TEXT
     ) != 0){
@@ -1399,9 +1399,9 @@ int8_t stcp_http_webserver_add_tcp_response_callback(
     memcpy(data_value + 9, &_response_function, sizeof(void *));
     if(shilink_fill_custom_data(
      &_data,
-     (void *) _start_bits,
+     (const void *) _start_bits,
      _start_bits_size,
-     (void *) data_value,
+     (const void *) data_value,
      (uint16_t) (9 + sizeof(void *)),
      SL_TEXT
     ) != 0){
@@ -1439,7 +1439,7 @@ unsigned char *stcp_http_webserver_select_response(
     
     if (shilink_search_data_by_position(
      _stcpWList,
-     (void *) data_key,
+     (const void *) data_key,
      (uint16_t) strlen(data_key),
      0,
      &_data
@@ -1455,7 +1455,7 @@ unsigned char *stcp_http_webserver_select_response(
              _stcpWI->rcv_endpoint.stcp_sub_size);
             if (shilink_search_data_by_position(
              _stcpWList,
-             (void *) data_key,
+             (const void *) data_key,
              (uint16_t) strlen(data_key),
              0,
              &_data
@@ -1474,7 +1474,7 @@ unsigned char *stcp_http_webserver_select_response(
              _stcpWI->rcv_endpoint.stcp_sub_size);
             if (shilink_search_data_by_position(
              _stcpWList,
-             (void *) data_key,
+             (const void *) data_key,
              (uint16_t) strlen(data_key),
              0,
              &_data
@@ -1493,7 +1493,7 @@ unsigned char *stcp_http_webserver_select_response(
              _stcpWI->rcv_endpoint.stcp_sub_size);
             if (shilink_search_data_by_position(
              _stcpWList,
-             (void *) data_key,
+             (const void *) data_key,
              (uint16_t) strlen(data_key),
              0,
              &_data
@@ -1512,7 +1512,7 @@ unsigned char *stcp_http_webserver_select_response(
              _stcpWI->rcv_endpoint.stcp_sub_size);
             if (shilink_search_data_by_position(
              _stcpWList,
-             (void *) data_key,
+             (const void *) data_key,
              (uint16_t) strlen(data_key),
              0,
              &_data
@@ -1531,7 +1531,7 @@ unsigned char *stcp_http_webserver_select_response(
              _stcpWI->rcv_endpoint.stcp_sub_size);
             if (shilink_search_data_by_position(
              _stcpWList,
-             (void *) data_key,
+             (const void *) data_key,
              (uint16_t) strlen(data_key),
              0,
              &_data
@@ -1550,7 +1550,7 @@ unsigned char *stcp_http_webserver_select_response(
              _stcpWI->rcv_endpoint.stcp_sub_size);
             if (shilink_search_data_by_position(
              _stcpWList,
-             (void *) data_key,
+             (const void *) data_key,
              (uint16_t) strlen(data_key),
              0,
              &_data
@@ -1569,7 +1569,7 @@ unsigned char *stcp_http_webserver_select_response(
              _stcpWI->rcv_endpoint.stcp_sub_size);
             if (shilink_search_data_by_position(
              _stcpWList,
-             (void *) data_key,
+             (const void *) data_key,
              (uint16_t) strlen(data_key),
              0,
              &_data
