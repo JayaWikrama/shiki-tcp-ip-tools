@@ -3495,6 +3495,7 @@ unsigned char *stcp_http_generate_multipart_header(
     uint16_t buff_size = 0;
     uint8_t num_of_from_data = 0;
     uint8_t num_tmp = 0;
+    uint8_t content_type_flag = 0x00;
     long stcp_time_boundary = time(NULL);
 
     memset(buff, 0x00, 32*sizeof(unsigned char));
@@ -3556,29 +3557,40 @@ unsigned char *stcp_http_generate_multipart_header(
     do {
         if (_stcp_multipart_header_input[idx_header] == '=' && idx_data > 0){
             num_tmp++;
-            if (num_tmp == 1){
-                output_header = (unsigned char *) realloc(output_header, (pos_header + idx_data + 6)*sizeof(unsigned char));
-                memcpy(output_header + pos_header, buff, idx_data);
-                memcpy(output_header + (pos_header + idx_data), "\"\r\n\r\n", 5);
-                pos_header += idx_data + 5;
-            }
-            else if (num_tmp < num_of_from_data){
-                output_header = (unsigned char *) realloc(output_header, (pos_header + idx_data + 4 + 27 + 40 + 6)*sizeof(unsigned char));
-                memcpy(output_header + pos_header, "\r\n--", 4);
-                memcpy(output_header + (pos_header + 4), _boundary_output, 27);
-                memcpy(output_header + (pos_header + 4 + 27), "\r\nContent-Disposition: form-data; name=\"", 40);
-                memcpy(output_header + (pos_header + 4 + 27 + 40), buff, idx_data);
-                memcpy(output_header + (pos_header + 4 + 27 + 40 + idx_data), "\"\r\n\r\n", 5);
-                pos_header += idx_data + 4 + 27 + 40 + 5;
+            if (content_type_flag == 0x00){
+                if (num_tmp == 1){
+                    output_header = (unsigned char *) realloc(output_header, (pos_header + idx_data + 6)*sizeof(unsigned char));
+                    memcpy(output_header + pos_header, buff, idx_data);
+                    memcpy(output_header + (pos_header + idx_data), "\"\r\n\r\n", 5);
+                    pos_header += idx_data + 5;
+                }
+                else if (num_tmp < num_of_from_data){
+                    output_header = (unsigned char *) realloc(output_header, (pos_header + idx_data + 4 + 27 + 40 + 6)*sizeof(unsigned char));
+                    memcpy(output_header + pos_header, "\r\n--", 4);
+                    memcpy(output_header + (pos_header + 4), _boundary_output, 27);
+                    memcpy(output_header + (pos_header + 4 + 27), "\r\nContent-Disposition: form-data; name=\"", 40);
+                    memcpy(output_header + (pos_header + 4 + 27 + 40), buff, idx_data);
+                    memcpy(output_header + (pos_header + 4 + 27 + 40 + idx_data), "\"\r\n\r\n", 5);
+                    pos_header += idx_data + 4 + 27 + 40 + 5;
+                }
+                else {
+                    output_header = (unsigned char *) realloc(output_header, (pos_header + idx_data + 4 + 27 + 40 + 14)*sizeof(unsigned char));
+                    memcpy(output_header + pos_header, "\r\n--", 4);
+                    memcpy(output_header + (pos_header + 4), _boundary_output, 27);
+                    memcpy(output_header + (pos_header + 4 + 27), "\r\nContent-Disposition: form-data; name=\"", 40);
+                    memcpy(output_header + (pos_header + 4 + 27 + 40), buff, idx_data);
+                    memcpy(output_header + (pos_header + 4 + 27 + 40 + idx_data), "\"; filename=\"", 13);
+                    pos_header += idx_data + 4 + 27 + 40 + 13;
+                }
             }
             else {
-                output_header = (unsigned char *) realloc(output_header, (pos_header + idx_data + 4 + 27 + 40 + 14)*sizeof(unsigned char));
-                memcpy(output_header + pos_header, "\r\n--", 4);
-                memcpy(output_header + (pos_header + 4), _boundary_output, 27);
-                memcpy(output_header + (pos_header + 4 + 27), "\r\nContent-Disposition: form-data; name=\"", 40);
-                memcpy(output_header + (pos_header + 4 + 27 + 40), buff, idx_data);
-                memcpy(output_header + (pos_header + 4 + 27 + 40 + idx_data), "\"; filename=\"", 13);
-                pos_header += idx_data + 4 + 27 + 40 + 13;
+                if (num_tmp < num_of_from_data){
+                    output_header = (unsigned char *) realloc(output_header, (pos_header + idx_data + 5)*sizeof(unsigned char));
+                    memcpy(output_header + pos_header, buff, idx_data);
+                    memcpy(output_header + (pos_header + idx_data), "\r\n\r\n", 4);
+                    pos_header += idx_data + 4;
+                }
+                content_type_flag = 0x00;
             }
             idx_data = 0;
             if (buff_size != 32){
@@ -3591,6 +3603,7 @@ unsigned char *stcp_http_generate_multipart_header(
             }
         }
         else if (_stcp_multipart_header_input[idx_header] == '|' && idx_data > 0){
+            content_type_flag = 0x00;
             output_header = (unsigned char *) realloc(output_header, (pos_header + idx_data + 1)*sizeof(unsigned char));
             memcpy(output_header + pos_header, buff, idx_data);
             pos_header += idx_data;
@@ -3604,12 +3617,30 @@ unsigned char *stcp_http_generate_multipart_header(
                 memset(buff, 0x00, buff_size*sizeof(unsigned char));
             }
         }
-        else if (_stcp_multipart_header_input[idx_header] == 0x00){
-            output_header = (unsigned char *) realloc(output_header, (pos_header + idx_data + 6)*sizeof(unsigned char));
-            memcpy(output_header + pos_header, buff, idx_data);
-            memcpy(output_header + (pos_header + idx_data), "\"\r\n\r\n", 5);
-            pos_header += idx_data + 5;
-            output_header[pos_header] = 0x00;
+        else if (_stcp_multipart_header_input[idx_header] == '~' && idx_data > 0){
+            content_type_flag = 0x01;
+            if (num_tmp == 0 && num_tmp < num_of_from_data){
+                output_header = (unsigned char *) realloc(output_header, (pos_header + idx_data + 4)*sizeof(unsigned char));
+                memcpy(output_header + pos_header, buff, idx_data);
+                memcpy(output_header + (pos_header + idx_data), "\"\r\n", 3);
+                pos_header += idx_data + 3;
+            }
+            else if (num_tmp < num_of_from_data){
+                output_header = (unsigned char *) realloc(output_header, (pos_header + idx_data + 4 + 27 + 40 + 4)*sizeof(unsigned char));
+                memcpy(output_header + pos_header, "\r\n--", 4);
+                memcpy(output_header + (pos_header + 4), _boundary_output, 27);
+                memcpy(output_header + (pos_header + 4 + 27), "\r\nContent-Disposition: form-data; name=\"", 40);
+                memcpy(output_header + (pos_header + 4 + 27 + 40), buff, idx_data);
+                memcpy(output_header + (pos_header + 4 + 27 + 40 + idx_data), "\"\r\n", 3);
+                pos_header += idx_data + 4 + 27 + 40 + 3;
+            }
+            else {
+                output_header = (unsigned char *) realloc(output_header, (pos_header + idx_data + 4)*sizeof(unsigned char));
+                memcpy(output_header + pos_header, buff, idx_data);
+                memcpy(output_header + (pos_header + idx_data), "\"\r\n", 3);
+                pos_header += idx_data + 3;
+                output_header[pos_header] = 0x00;
+            }
             idx_data = 0;
             if (buff_size != 32){
                 buff_size = 32;
@@ -3618,6 +3649,40 @@ unsigned char *stcp_http_generate_multipart_header(
             }
             else {
                 memset(buff, 0x00, buff_size*sizeof(unsigned char));
+            }
+        }
+        else if (_stcp_multipart_header_input[idx_header] == 0x00){
+            if (!content_type_flag){
+                output_header = (unsigned char *) realloc(output_header, (pos_header + idx_data + 6)*sizeof(unsigned char));
+                memcpy(output_header + pos_header, buff, idx_data);
+                memcpy(output_header + (pos_header + idx_data), "\"\r\n\r\n", 5);
+                pos_header += idx_data + 5;
+                output_header[pos_header] = 0x00;
+                idx_data = 0;
+                if (buff_size != 32){
+                    buff_size = 32;
+                    buff = (unsigned char *) realloc(buff, buff_size*sizeof(unsigned char));
+                    memset(buff, 0x00, buff_size*sizeof(unsigned char));
+                }
+                else {
+                    memset(buff, 0x00, buff_size*sizeof(unsigned char));
+                }
+            }
+            else {
+                output_header = (unsigned char *) realloc(output_header, (pos_header + idx_data + 5)*sizeof(unsigned char));
+                memcpy(output_header + pos_header, buff, idx_data);
+                memcpy(output_header + (pos_header + idx_data), "\r\n\r\n", 4);
+                pos_header += idx_data + 4;
+                output_header[pos_header] = 0x00;
+                idx_data = 0;
+                if (buff_size != 32){
+                    buff_size = 32;
+                    buff = (unsigned char *) realloc(buff, buff_size*sizeof(unsigned char));
+                    memset(buff, 0x00, buff_size*sizeof(unsigned char));
+                }
+                else {
+                    memset(buff, 0x00, buff_size*sizeof(unsigned char));
+                }
             }
             break;
         }
