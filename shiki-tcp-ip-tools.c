@@ -1848,7 +1848,6 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data,
     free(file_content);
     file_content = NULL;
     fclose(stcp_file);
-    printf("closed_flag: %d\n", closed_flag);
     return closed_flag;
 }
 
@@ -4006,9 +4005,10 @@ unsigned char *stcp_http_request(
                 }
                 else {
                     stcp_debug(__func__, STCP_DEBUG_WARNING, "failed to create end boundary\n");
+                }if (boundary != NULL){
+                    free(boundary);
+                    boundary = NULL;
                 }
-                free(boundary);
-                boundary = NULL;
             }
         }
     }
@@ -4027,8 +4027,10 @@ unsigned char *stcp_http_request(
                 else {
                     stcp_debug(__func__, STCP_DEBUG_WARNING, "failed to create end boundary\n");
                 }
-                free(boundary);
-                boundary = NULL;
+                if (boundary != NULL){
+                    free(boundary);
+                    boundary = NULL;
+                }
             }
         }
         #endif
@@ -4302,42 +4304,24 @@ void stcp_ssl_close(stcpSock *init_data){
 #endif
 
 static unsigned long stcp_get_content_length(const char *_text_source){
-    char *buff_info;
-    do {
-        buff_info = (char *) malloc(17*sizeof(char));
-        if (buff_info == NULL){
-            #ifdef __STCP_DEBUG__
-            stcp_debug(__func__, STCP_DEBUG_WARNING, "failed to allocate memory\n");
-            #endif
-            usleep(1000);
+    char *buff_info = NULL;
+    buff_info = strstr(_text_source, "Content-Length: ");
+    if (buff_info == NULL) {
+        return 0;
+    }
+    buff_info += 16;
+    char buff_data[16];
+    uint8_t idx_data = 0x00;
+    for (idx_data = 0x00; idx_data < 15; idx_data++){
+        if (idx_data > 0 && (buff_info[idx_data] < '0' || buff_info[idx_data] > '9')){
+            buff_data[idx_data] = 0x00;
+            return (unsigned long) atol(buff_data);
         }
-    } while (buff_info == NULL);
-    char buff_data[10];
-    int16_t i=0;
-    for (i=0; i<(strlen(_text_source) - strlen("Content-Length: ")); i++){
-        memset(buff_info, 0x00, 17*sizeof(char));
-        int8_t j=0;
-        for (j=0; j<strlen("Content-Length: "); j++){
-            buff_info[j] = _text_source[i + j];
-        }
-        if (strcmp(buff_info, "Content-Length: ") == 0){
-            i = i + strlen("Content-Length: ");
-            memset(buff_data, 0x00, 7*sizeof(char));
-            int8_t j = 0;
-            for (j=0; j<9; j++){
-                if (j>0 && (_text_source[i + j] < '0' || _text_source[i + j] > '9')){
-                    free(buff_info);
-                    return (unsigned long) atol(buff_data);
-                }
-                else if (_text_source[i + j] >= '0' && _text_source[i + j] <= '9'){
-                    buff_data[j] = _text_source[i + j];
-                }
-            }
+        else {
+            buff_data[idx_data] = buff_info[idx_data];
         }
     }
-    free(buff_info);
-    buff_info = NULL;
-    return 0;
+    return (unsigned long) atol(buff_data);
 }
 
 static unsigned char *stcp_select_content(
@@ -4349,25 +4333,14 @@ static unsigned char *stcp_select_content(
         response = NULL;
         return NULL;
     }
-    unsigned char *stcp_trx_buffer;
-    stcp_trx_buffer = (unsigned char *) malloc((_content_length + 1) *sizeof(unsigned char));
-    if (stcp_trx_buffer == NULL){
-        #ifdef __STCP_DEBUG__
-        stcp_debug(__func__, STCP_DEBUG_ERROR, "failed to allocate temporary memory\n");
-        #endif
-        free(response);
-        response = NULL;
-        return NULL;
-    }
-    memset(stcp_trx_buffer, 0x00, (_content_length + 1)*sizeof(char));
+    uint32_t data_length = (uint32_t) strlen((char *) response);
     uint32_t i = 0;
-    for (i=0; i<_content_length; i++){
-        stcp_trx_buffer[i] = response[i + (strlen((char *) response) - _content_length)];
+    for (i = 0; i <_content_length; i++){
+        response[i] = response[i + (data_length - _content_length)];
     }
-    free(response);
-    response = NULL;
-    return stcp_trx_buffer;
-
+    response[_content_length] = 0x00;
+    response = realloc(response, _content_length + 1);
+    return response;
 }
 
 /*
