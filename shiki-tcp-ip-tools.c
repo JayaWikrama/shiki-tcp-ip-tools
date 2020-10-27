@@ -4139,7 +4139,7 @@ unsigned char *stcp_http_request(
                                     else {
                                         memset(stcp_trx_buffer, 0x00, (stcp_setup_data.stcp_size_per_recv + 1)*sizeof(char));
                                         memcpy(stcp_trx_buffer, response + total_bytes, bytes);
-                                        fprintf(download_file, "%s", stcp_trx_buffer);
+                                        fwrite(stcp_trx_buffer, 1, bytes, download_file);
                                     }
                                     response[total_bytes] = 0x00;
                                     response = (unsigned char *) realloc(response, (total_bytes + 1)*sizeof(unsigned char));
@@ -4192,7 +4192,7 @@ unsigned char *stcp_http_request(
                 stcp_debug(__func__, STCP_DEBUG_ERROR, "failed to open config file\n");
             }
             else {
-                fprintf(download_file, "%s", stcp_trx_buffer);
+                fwrite(stcp_trx_buffer, 1, bytes, download_file);
             }
         }
 
@@ -4333,10 +4333,12 @@ static unsigned char *stcp_select_content(
         response = NULL;
         return NULL;
     }
-    uint32_t data_length = (uint32_t) strlen((char *) response);
+    char *buff_tmp = NULL;
+    buff_tmp = strstr((char *) response, "\r\n\r\n");
+    buff_tmp += 4;
     uint32_t i = 0;
     for (i = 0; i <_content_length; i++){
-        response[i] = response[i + (data_length - _content_length)];
+        response[i] = buff_tmp[i];
     }
     response[_content_length] = 0x00;
     response = realloc(response, _content_length + 1);
