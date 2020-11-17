@@ -1,6 +1,10 @@
 #ifndef __SHIKI_TCP_IP_TOOLS__
 #define __SHIKI_TCP_IP_TOOLS__
 
+#ifdef __cplusplus
+  extern "C" {
+#endif
+
 #define __STCP_PING__
 #define __STCP_SSL__
 #define __STCP_WEBSERVER__
@@ -357,4 +361,9 @@ void stcp_close(stcpSock *init_data);
    uint16_t NUM_OF_PING
   );
 #endif
+
+#ifdef __cplusplus
+  }
+#endif
+
 #endif

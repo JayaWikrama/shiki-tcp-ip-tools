@@ -1,6 +1,6 @@
 /*
     lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.18.20.09.28
+    ver         : 3.19.20.11.17
     author      : Jaya Wikrama, S.T.
     e-mail      : jayawikrama89@gmail.com
     Copyright (c) 2019 HANA,. Jaya Wikrama
@@ -39,7 +39,7 @@
     #include <netinet/ip_icmp.h>
 #endif
 #define SA struct sockaddr
-#define STCP_VER "3.18.20.09.28"
+#define STCP_VER "3.19.20.11.17"
 
 typedef enum {
     #ifdef __STCP_WEBSERVER__
@@ -441,7 +441,7 @@ int8_t stcp_webserver_setup(stcp_webserver_setup_parameter _setup_parameter, uin
     else if (_setup_parameter == STCP_SET_WEBSERVER_VERIFY_CERT_MODE){
         if ((int8_t)_value == STCP_SSL_WEBSERVER_WITHOUT_VERIFY_CLIENT ||
          (int8_t)_value == STCP_SSL_WEBSERVER_VERIFY_REMOTE_CLIENT){
-            stcp_webserver_setup_data.stcp_sslw_verify_mode = (int8_t)_value;
+            stcp_webserver_setup_data.stcp_sslw_verify_mode = (stcp_ssl_webserver_verify_mode) _value;
         }
         else {
             stcp_debug(__func__, STCP_DEBUG_WARNING, "wrong value\n");
@@ -984,7 +984,7 @@ static inline void stcp_http_webserver_print_segment(
 static unsigned long long stcp_get_partial_length(const char *_text_source){
     static char buff_info[17];
     static char buff_data[10];
-    int16_t i=0;
+    size_t i = 0;
     size_t source_length = strlen(_text_source);
     for (i=0; i<(source_length - 13); i++){
         memset(buff_info, 0x00, sizeof(buff_info));
@@ -1581,14 +1581,14 @@ unsigned char *stcp_http_webserver_select_response(
         if (shilink_search_data_by_position(_stcpWList, "404", 3, 0, &_data) != 0){
             return NULL;
         }
-        return _data.sl_value;
+        return (unsigned char *) _data.sl_value;
         
         next405 :
             strcpy(_respons_code, "405 Method Not Allowed");
             if (shilink_search_data_by_position(_stcpWList, "405", 3, 0, &_data) != 0){
                 return NULL;
             }
-            return _data.sl_value;
+            return (unsigned char *) _data.sl_value;
     }
     strcpy(_respons_code, "200 OK");
     if (memcmp(_data.sl_value, "callback:", 9) != 0){
@@ -1853,7 +1853,7 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data,
 
 static int8_t stcp_http_webserver_callback(
  stcpSock _init_data,
- const void *_function (),
+ const void *_function (stcpSock, stcpWInfo *, stcpWHead *, stcpWList, int8_t *),
  stcpWInfo *_stcpWI,
  stcpWHead *_stcpWH,
  stcpWList _stcpWList
@@ -2019,7 +2019,7 @@ int8_t stcp_http_webserver(
             }
             #if !defined __XTENSA__ && !defined ESP_PLATFORM
             unsigned char* sslCertKey = NULL;
-            stcp_ssl_certkey_type certkeyType = 0;
+            stcp_ssl_certkey_type certkeyType = STCP_SSL_CACERT_TYPE_FILE;
             sslCertKey = stcp_ssl_get_cert(ADDRESS, &certkeyType);
             if (sslCertKey != NULL){
                 if (certkeyType == STCP_SSL_CERT_TYPE_FILE){
@@ -2109,6 +2109,9 @@ int8_t stcp_http_webserver(
     int16_t activity = 0;
     int8_t proc_state = STCP_PROCESS_GET_HEADER;
     stcp_server_state = STCP_SERVER_RUNING;
+    unsigned char *response_content = NULL;
+    void* _func_tmp = NULL;
+    char *buffer_info = NULL;
 
     time_t elapsed_connection_counter = 0;
     struct slow_http_attack_var {
@@ -2461,10 +2464,7 @@ int8_t stcp_http_webserver(
                 if (idx_chr > 0){
                     stcp_debug(__func__, STCP_DEBUG_INFO, "Content Received %li bytes\n", (long) idx_chr);
                 }
-                
-                unsigned char *response_content = NULL;
-                void* _func_tmp = NULL;
-                char *buffer_info = NULL;
+
                 memset(response_code, 0x00, sizeof(response_code));
                 response_content = stcp_http_webserver_select_response(_stcpWI, _stcpWList, response_code);
                 strcpy(_stcpWI->ipaddr, inet_ntoa(client_addr[idx_client]));
@@ -2511,7 +2511,13 @@ int8_t stcp_http_webserver(
                 }
                 else if (memcmp(response_content, "callback:", 9) == 0){
                     memcpy(&_func_tmp, response_content + 9, sizeof(void *));
-                    int8_t retval = stcp_http_webserver_callback(init_data, _func_tmp, _stcpWI, _stcpWH, _stcpWList);
+                    int8_t retval = stcp_http_webserver_callback(
+                     init_data,
+                     (const void * (*)(stcpSock, stcpWInfo *, stcpWHead *, stcpWList, int8_t *)) _func_tmp,
+                     _stcpWI,
+                     _stcpWH,
+                     _stcpWList
+                    );
                     if (retval == -1 || retval == 1){
                         goto stcp_connection_check;
                     }
@@ -2564,7 +2570,13 @@ int8_t stcp_http_webserver(
                     response_content = stcp_http_webserver_select_tcp_response(_stcpWI->rcv_header, _stcpWList);
                     if(response_content != NULL){
                         memcpy(&_func_tmp, response_content + 9, sizeof(void *));
-                        int8_t retval = stcp_http_webserver_callback(init_data, _func_tmp, _stcpWI, _stcpWH, _stcpWList);
+                        int8_t retval = stcp_http_webserver_callback(
+                         init_data,
+                         (const void * (*)(stcpSock, stcpWInfo *, stcpWHead *, stcpWList, int8_t *)) _func_tmp,
+                         _stcpWI,
+                         _stcpWH,
+                         _stcpWList
+                        );
                         if (retval == -1 || retval == 1){
                             goto close_client;
                         }
@@ -2771,7 +2783,7 @@ stcpSock stcp_ssl_client_init(
 
             #if !defined __XTENSA__ && !defined ESP_PLATFORM
             unsigned char* sslCertKey = NULL;
-            stcp_ssl_certkey_type certkeyType = 0;
+            stcp_ssl_certkey_type certkeyType = STCP_SSL_CERT_TYPE_FILE;
             shilink_print(stcp_certkey_collection);
             sslCertKey = stcp_ssl_get_cert(ADDRESS, &certkeyType);
             int8_t cert_flag = 0;
@@ -4305,7 +4317,7 @@ void stcp_ssl_close(stcpSock *init_data){
 
 static unsigned long stcp_get_content_length(const char *_text_source){
     char *buff_info = NULL;
-    buff_info = strstr(_text_source, "Content-Length: ");
+    buff_info = (char *) strstr(_text_source, "Content-Length: ");
     if (buff_info == NULL) {
         return 0;
     }
@@ -4341,7 +4353,7 @@ static unsigned char *stcp_select_content(
         response[i] = buff_tmp[i];
     }
     response[_content_length] = 0x00;
-    response = realloc(response, _content_length + 1);
+    response = (unsigned char *) realloc(response, _content_length + 1);
     return response;
 }
 
@@ -4351,7 +4363,7 @@ run_without_root (do on shell) : setcap cap_net_raw+ep executable_file
 */
 #ifdef __STCP_PING__
 static unsigned short stcp_checksum(void *b, int len){
-	unsigned short *buff = b;
+	unsigned short *buff = (unsigned short *) b;
 	unsigned int sum=0;
 	unsigned short result;
 
@@ -4422,7 +4434,8 @@ struct stcp_ping_summary stcp_ping(const char *ADDRESS, uint16_t NUM_OF_PING){
 	struct timeval tv_out;
 	struct timeval tm_start, tm_end;
     struct timeval tc_start, tc_end;
-	int16_t ttl_val= (int16_t)PACKET_SIZE, msg_count=0, i;
+	int16_t ttl_val = (int16_t)PACKET_SIZE, msg_count = 0;
+    size_t i = 0;
     int16_t bytes = 0;
 	long double total_tm_ping;
 	socklen_t addr_len;
