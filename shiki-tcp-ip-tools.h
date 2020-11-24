@@ -20,12 +20,12 @@
     #define SSL_FILETYPE_PEM X509_FILETYPE_PEM
   #endif
   typedef enum {
-    STCP_SSL_CERT_TYPE_FILE = 0x00,
-    STCP_SSL_CERT_TYPE_TEXT = 0x01,
-    STCP_SSL_KEY_TYPE_FILE = 0x02,
-    STCP_SSL_KEY_TYPE_TEXT = 0x03,
-    STCP_SSL_CACERT_TYPE_FILE = 0x04,
-    STCP_SSL_CACERT_TYPE_TEXT = 0x05
+    STCP_SSL_CERT_TYPE_FILE = 0x00, /*!< type of SSL/TLS certificate input is file */
+    STCP_SSL_CERT_TYPE_TEXT = 0x01, /*!< type of SSL/TLS certificate input is text that stored in buffer memmory */
+    STCP_SSL_KEY_TYPE_FILE = 0x02, /*!< type of SSL/TLS key input is file */
+    STCP_SSL_KEY_TYPE_TEXT = 0x03, /*!< type of SSL/TLS key input is text that stored in buffer memmory */
+    STCP_SSL_CACERT_TYPE_FILE = 0x04, /*!< type of SSL/TLS cacert input is file */
+    STCP_SSL_CACERT_TYPE_TEXT = 0x05 /*!< type of SSL/TLS cacert input is text that stored in buffer memmory */
   } stcp_ssl_certkey_type;
 #endif
 
@@ -35,125 +35,126 @@
 #endif
 
 typedef enum {
-  STCP_DEBUG_OFF = 0x00,
-  STCP_DEBUG_ON = 0x01,
-  WITHOUT_RETRY = 0x02,
-  INFINITE_RETRY = 0x03,
+  STCP_DEBUG_OFF = 0x00, /*!< flag to disable stcp_debug */
+  STCP_DEBUG_ON = 0x01, /*!< flag to enable stcp_debug */
+  WITHOUT_RETRY = 0x02, /*!< flag to enable retry routine in server/client initialize */
+  INFINITE_RETRY = 0x03, /*!< flag to disable retry routine in server/client initialize */
 } stcp_global_def;
 
 typedef enum {
-  STCP_DEBUG_INFO = 0x00,
-  STCP_DEBUG_DOWNLOAD = 0x01,
-  STCP_DEBUG_VERSION = 0x02,
-  STCP_DEBUG_WEBSERVER = 0x03,
-  STCP_DEBUG_WARNING = 0x04,
-  STCP_DEBUG_ERROR = 0x05,
-  STCP_DEBUG_CRITICAL = 0x06
+  STCP_DEBUG_INFO = 0x00, /*!< flag to output debug in stcp_debug as INFO */
+  STCP_DEBUG_DOWNLOAD = 0x01, /*!< flag to output debug in stcp_debug as DOWNLOAD */
+  STCP_DEBUG_VERSION = 0x02, /*!< flag to output debug in stcp_debug as VERSION */
+  STCP_DEBUG_WEBSERVER = 0x03, /*!< flag to output debug in stcp_debug as WEBSERVER */
+  STCP_DEBUG_WARNING = 0x04, /*!< flag to output debug in stcp_debug as WARNING */
+  STCP_DEBUG_ERROR = 0x05, /*!< flag to output debug in stcp_debug as ERROR */
+  STCP_DEBUG_CRITICAL = 0x06 /*!< flag to output debug in stcp_debug as CRITICAL */
 } stcp_debug_type;
 
 #define STCP_MAX_LENGTH_FILE_NAME 16
 
 struct stcp_sock_data{
-  int socket_f, connection_f;
+  int socket_f; /*!< variable to store socket descriptor */
+  int connection_f; /*!< variable to store accepted client socket */
   #ifdef __STCP_SSL__
-    SSL *ssl_connection_f;
+    SSL *ssl_connection_f; /*!< variable to store SSL/TLS connection informations */
   #endif
 };
 
 typedef struct stcp_sock_data stcpSock;
 
 typedef struct stcp_subhead_var{
-  uint16_t stcp_sub_pos;
-  uint16_t stcp_sub_size;
-} stcpSHead;
+  uint16_t stcp_sub_pos; /*!< start position of data */
+  uint16_t stcp_sub_size; /*!< size of data */
+} stcpSHead; /*!< structure of segmentation data */
 
 #ifdef __STCP_PING__
   struct stcp_ping_summary{
-    int8_t state;
-    uint16_t tx_counter;
-    uint16_t rx_counter;
-    uint16_t max_rtt;
-    uint16_t min_rtt;
-    uint16_t avg_rtt;
-    uint8_t packet_loss;
-    uint32_t time_counter;
-  };
+    int8_t state; /*!< flag to determine state of PING process (0 if all process is run correctly) */
+    uint16_t tx_counter; /*!< number of packet transmit */
+    uint16_t rx_counter; /*!< number of packet received */
+    uint16_t max_rtt; /*!< maximum tarnsfer time */
+    uint16_t min_rtt; /*!< minimum transfer time */
+    uint16_t avg_rtt; /*!< transfer time average */
+    uint8_t packet_loss; /*!< number of packet lose */
+    uint32_t time_counter; /*!< time of PING process */
+  }; /*!< PING data statistics */
 #endif
 
 #ifdef __STCP_WEBSERVER__
   typedef enum{
-    STCP_401_UNAUTHOIZED = 0x01,
-    STCP_404_NOT_FOUND = 0x02,
-    STCP_405_METHOD_NOT_ALLOWED = 0x03
+    STCP_401_UNAUTHOIZED = 0x01, /*!< flag response code if request is unauthorized */
+    STCP_404_NOT_FOUND = 0x02, /*!< flag response code if request not found*/
+    STCP_405_METHOD_NOT_ALLOWED = 0x03 /*!< flag response code if request not allowed */
   } stcp_webserver_negative_code;
 
   #ifdef __STCP_SSL__
   typedef enum{
-    STCP_SSL_WEBSERVER_WITHOUT_VERIFY_CLIENT = 0x00,
-    STCP_SSL_WEBSERVER_VERIFY_REMOTE_CLIENT = 0x01
-  } stcp_ssl_webserver_verify_mode;
+    STCP_SSL_WEBSERVER_WITHOUT_VERIFY_CLIENT = 0x00, /*!< without client certificate verification */
+    STCP_SSL_WEBSERVER_VERIFY_REMOTE_CLIENT = 0x01 /*!< force client certificate verification */
+  } stcp_ssl_webserver_verify_mode; /*!< SSL Verify Mode on STCP Webserver routine */
   #endif
 
   struct stcp_webserver_info{
-    char *server_header;
-    unsigned char *rcv_header;
-    stcpSHead request;
-    stcpSHead data_end_point;
-    stcpSHead rcv_endpoint;
-    stcpSHead rcv_boundary;
-    stcpSHead rcv_content_type;
-    stcpSHead rcv_acception_type;
-    stcpSHead rcv_auth;
-    stcpSHead rcv_cookies;
-    stcpSHead rcv_connection_type;
-    unsigned char *rcv_content;
-    char *ipaddr;
-    uint32_t content_length;
-    uint64_t partial_length;
-    int8_t comm_protocol;
-  };
+    char *server_header; /*!< HTTP server header that will be send to client */
+    unsigned char *rcv_header; /*!< HTTP client header that has been received */
+    stcpSHead request; /*!< segment of request type (GET/POST/PATCH/etc) */
+    stcpSHead data_end_point; /*!< segment of endpoint data */
+    stcpSHead rcv_endpoint; /*!< segment of request endpoint */
+    stcpSHead rcv_boundary; /*!< segment of multipart-form data boundary */
+    stcpSHead rcv_content_type; /*!< segment of content-type */
+    stcpSHead rcv_acception_type;/*!< segment of Accept field */
+    stcpSHead rcv_auth; /*!< segment of auth token */
+    stcpSHead rcv_cookies; /*!< segment of cookies */
+    stcpSHead rcv_connection_type; /*!< segment of Connection field */
+    unsigned char *rcv_content; /*!< HTTP Client content/body that has been received */
+    char *ipaddr; /*!< clien ip address */
+    uint32_t content_length; /*!< size/length of received HTTP Client content/body */
+    uint64_t partial_length; /*!< size/length of received HTTP Client partial-content */
+    int8_t comm_protocol; /*!< flag of communication protocol (http/https) */
+  }; /*!< Webserver transaction data */
 
   struct stcp_webserver_header{
-    char *content_type;
-    char *accept_type;
-  };
+    char *content_type; /*!< default value of content-type field on HTTP Server */
+    char *accept_type; /*!< default value of Accept field on HTTP Server */
+  }; /*!< Webserver default informations */
 
   typedef struct stcp_webserver_info stcpWInfo;
   typedef struct stcp_webserver_header stcpWHead;
 #endif
 
 typedef enum {
-  STCP_REQ_COMPLETE = 0,
-  STCP_REQ_HEADER_ONLY = 1,
-  STCP_REQ_CONTENT_ONLY = 2,
-  STCP_REQ_HTTP_STATUS_ONLY = 3,
-  STCP_REQ_DOWNLOAD_CONTENT = 4,
-  STCP_REQ_UPLOAD_FILE = 5
-} stcp_request_type;
+  STCP_REQ_COMPLETE = 0, /*!< flag to tell __stcp_http_request__ function to return all HTTP Response data (header + content/body) */
+  STCP_REQ_HEADER_ONLY = 1, /*!< flag to tell __stcp_http_request__ function to return HTTP Response header only */
+  STCP_REQ_CONTENT_ONLY = 2, /*!< flag to tell __stcp_http_request__ function to return HTTP Response content/body only */
+  STCP_REQ_HTTP_STATUS_ONLY = 3, /*!< flag to tell __stcp_http_request__ function to return HTTP Response status code only */
+  STCP_REQ_DOWNLOAD_CONTENT = 4, /*!< flag to tell __stcp_http_request__ function to store HTTP Response header content/body to file */
+  STCP_REQ_UPLOAD_FILE = 5 /*!< flag to tell __stcp_http_request__ function to send file */
+} stcp_request_type; /*!< STCP HTTP Client request type */
 
 typedef enum{
-  STCP_SET_TIMEOUT_IN_SEC = 0,
-  STCP_SET_TIMEOUT_IN_MILLISEC = 1,
-  STCP_SET_DEBUG_MODE = 2,
-  STCP_SET_SIZE_PER_RECV = 3,
-  STCP_SET_SIZE_PER_SEND = 4,
-  STCP_SET_INFINITE_MODE_RETRY = 5
-} stcp_setup_parameter;
+  STCP_SET_TIMEOUT_IN_SEC = 0, /*!< parameter to tell __stcp_setup__ function to set timeout in seconds */
+  STCP_SET_TIMEOUT_IN_MILLISEC = 1, /*!< parameter to tell __stcp_setup__ function to set timeout in millseconds */
+  STCP_SET_DEBUG_MODE = 2, /*!< parameter to tell __stcp_setup__ function to set debug mode (enable/disable) */
+  STCP_SET_SIZE_PER_RECV = 3, /*!< parameter to tell __stcp_setup__ function to set maximum received size for a single received process */
+  STCP_SET_SIZE_PER_SEND = 4, /*!< parameter to tell __stcp_setup__ function to set maximum send size for a single send process */
+  STCP_SET_INFINITE_MODE_RETRY = 5 /*!< parameter to tell __stcp_setup__ function to set retry mode on Server/Client initialization (enable/disable) */
+} stcp_setup_parameter; /*!< STCP common setup parameters */
 
 #ifdef __STCP_WEBSERVER__
 typedef enum{
-  STCP_SET_KEEP_ALIVE_TIMEOUT_IN_SEC = 6,
-  STCP_SET_KEEP_ALIVE_TIMEOUT_IN_MILLISEC = 7,
-  STCP_SET_MAX_ELAPSED_CONNECTION = 80,
-  STCP_SET_SLOW_HTTP_ATTACK_BLOCKING_TIME = 81,
-  STCP_SET_SLOW_HTTP_ATTACK_COUNTER_ACCEPTED = 82,
-  STCP_SET_MAX_RECEIVED_HEADER = 83,
-  STCP_SET_MAX_RECEIVED_DATA = 84
+  STCP_SET_KEEP_ALIVE_TIMEOUT_IN_SEC = 6, /*!< parameter to tell __stcp_webserver_setup__ function to set maximum keep-alive connection in seconds */
+  STCP_SET_KEEP_ALIVE_TIMEOUT_IN_MILLISEC = 7, /*!< parameter to tell __stcp_webserver_setup__ function to set maximum keep-alive connection in milliseconds */
+  STCP_SET_MAX_ELAPSED_CONNECTION = 80, /*!< parameter to tell __stcp_webserver_setup__ function to set maximum elapsed connection in seconds */
+  STCP_SET_SLOW_HTTP_ATTACK_BLOCKING_TIME = 81, /*!< parameter to tell __stcp_webserver_setup__ function to set maximum blocking time in seconds for abnormal client */
+  STCP_SET_SLOW_HTTP_ATTACK_COUNTER_ACCEPTED = 82, /*!< parameter to tell __stcp_webserver_setup__ function to set maximum counter to determine that the client is abnormal client */
+  STCP_SET_MAX_RECEIVED_HEADER = 83, /*!< parameter to tell __stcp_webserver_setup__ function to set maximum header size request accepted */
+  STCP_SET_MAX_RECEIVED_DATA = 84 /*!< parameter to tell __stcp_webserver_setup__ function to set maximum data size request accepted */
   #ifdef __STCP_SSL__
   ,
-  STCP_SET_WEBSERVER_VERIFY_CERT_MODE = 99
+  STCP_SET_WEBSERVER_VERIFY_CERT_MODE = 99 /*!< parameter to tell __stcp_webserver_setup__ function to enable/disable certificate verify mode on HTTPS */
   #endif
-} stcp_webserver_setup_parameter;
+} stcp_webserver_setup_parameter; /*!< STCP Webserver setup parameters */
 #endif
 
 void stcp_debug(const char *_function_name, stcp_debug_type _debug_type, const char *_debug_msg, ...);

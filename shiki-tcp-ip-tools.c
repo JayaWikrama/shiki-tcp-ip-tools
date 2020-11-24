@@ -1,15 +1,18 @@
-/*
-    lib info    : SHIKI_LIB_GROUP - TCP_IP
-    ver         : 3.19.20.11.17
-    author      : Jaya Wikrama, S.T.
-    e-mail      : jayawikrama89@gmail.com
-    Copyright (c) 2019 HANA,. Jaya Wikrama
-
-    Support     : tcp-ip client/server
-                : tcp-ip ssl client
-                : http request
-                : webserver (http/tcp)
-*/
+/** \file shiki-tcp-ip-tools.c
+ * Copyright (C) 2019, 2020 Jaya Wikrama
+ * 
+ * Shiki TCP IP Tools (STCP) library provides the core API for TCP/IP, Webserver,
+ * and other network communication purpose based on TCP/IP. This library writen
+ * in C and compatible for C++ too. 
+ * 
+ * External Library Requirements:
+ * - Shiki Linked List (SHILINK)
+ * 
+ * Release Note (After Nov 24 2020)
+ * Ver.3.19.20.11.17
+ * * Nov 24 2020, Jaya Wikrama <jayawikrama89@gmail.com>
+ * -  Add Documentation
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,43 +47,43 @@
 typedef enum {
     #ifdef __STCP_WEBSERVER__
     /* Server state */
-    STCP_SERVER_RUNING = 0x00,
-    STCP_SERVER_STOP = 0x01,
-    STCP_SERVER_STOPED = 0x02,
+    STCP_SERVER_RUNING = 0x00, /*!< default signal state of STCP WEBSERBVER when its run correctly */
+    STCP_SERVER_STOP = 0x01, /*!< signal state to stop STCP WEBSERBVER */
+    STCP_SERVER_STOPED = 0x02, /*!< signal state of STCP WEBSERBVER when that inform STCP WEBSERVER has been stoped correctly */
     #endif
     /* Data com type */
-    STCP_TCP = 0x0a,
-    STCP_SSL = 0x0b,
+    STCP_TCP = 0x0a, /*!< TCP/IP Data Communication Type */
+    STCP_SSL = 0x0b, /*!< SSL/TLS Data Communication Type */
     /* Process state */
-    STCP_HEADER_CHECK = 0x10,
-    STCP_HEADER_PASS = 0x11,
-    STCP_HEADER_BLOCK = 0x12,
-    STCP_PROCESS_GET_HEADER = 0x13,
-    STCP_PROCESS_GET_CONTENT = 0x14
+    STCP_HEADER_CHECK = 0x10, /*!< STCP HTTP Client process flag when check collected header response from server */
+    STCP_HEADER_PASS = 0x11, /*!< STCP HTTP Client process flag when all header response from server have been collected */
+    STCP_HEADER_BLOCK = 0x12, /*!< STCP HTTP Client flag for BLOCK all invalid HTTP Header Response */
+    STCP_PROCESS_GET_HEADER = 0x13, /*!< STCP HTTP Client process flag when collecting header response from server */
+    STCP_PROCESS_GET_CONTENT = 0x14 /*!< STCP HTTP Client process flag when collecting content response from server */
 } stcp_const;
 
 struct stcp_setup_var{
-    int8_t stcp_lock_setup;
-    int8_t stcp_debug_mode;
-    int8_t stcp_retry_mode;
-    uint8_t stcp_max_recv_try;
-    uint16_t stcp_timeout_sec;
-    uint16_t stcp_timeout_millisec;
-    uint32_t stcp_size_per_recv;
-    uint32_t stcp_size_per_send;
+    int8_t stcp_lock_setup; /*!< flag LOCK/UNLOCK global setup */
+    int8_t stcp_debug_mode; /*!< flag to determine that debug is enable/disabled */
+    int8_t stcp_retry_mode; /*!< flag of retry routine for initialize Server/Client */
+    uint8_t stcp_max_recv_try; /*!< maximum try times to receive packet */
+    uint16_t stcp_timeout_sec; /*!< timeout of connect, accept, send, and receive in seconds */
+    uint16_t stcp_timeout_millisec; /*!< timeout of connect, accept, send, and receive in milliseconds */
+    uint32_t stcp_size_per_recv; /*!< size of maximum date that can be received for a single process */
+    uint32_t stcp_size_per_send; /*!< size of maximum date that can be send for a single process */
 };
 
 #ifdef __STCP_WEBSERVER__
 struct stcp_webserver_setup_var {
-    uint16_t stcp_keepalive_sec;
-    uint16_t stcp_keepalive_millisec;
-    uint16_t stcp_max_elapsed_connection;
-    uint16_t stcp_slow_http_attack_blocking_time;
-    uint8_t stcp_slow_http_attack_counter_accepted;
-    uint32_t stcp_max_received_header;
-    uint32_t stcp_max_received_data;
+    uint16_t stcp_keepalive_sec; /*!< time in seconds that determine how long connection in STCP WEBSERVER will be keep alive after last transaction/communication */
+    uint16_t stcp_keepalive_millisec; /*!< time in milliseconds that determine how long connection in STCP WEBSERVER will be keep alive after last transaction/communication */
+    uint16_t stcp_max_elapsed_connection; /*!< time in seconds that determine how long single request/transaction can be accepted in STCP WEBSERVER */
+    uint16_t stcp_slow_http_attack_blocking_time; /*!< time in seconds that determine how long client will be block in STCP WEBSERVER after the client is suspected of conducting an abnormal transaction/request */
+    uint8_t stcp_slow_http_attack_counter_accepted; /*!< counter that determine how many times client will be set as suspected client that conducting an abnormal transaction/request in STCP WEBSERVER */
+    uint32_t stcp_max_received_header; /*!< size of maximum accepted header in STCP WEBSERVICE */
+    uint32_t stcp_max_received_data; /*!< size of maximum accepted data in STCP WEBSERVICE */
     #ifdef __STCP_SSL__
-    stcp_ssl_webserver_verify_mode stcp_sslw_verify_mode;
+    stcp_ssl_webserver_verify_mode stcp_sslw_verify_mode; /*!< SSL Webserver Verify mode */
     #endif
 };
 #endif
@@ -153,6 +156,12 @@ static int8_t stcp_check_ip(const char *_ip_address);
 static unsigned long stcp_get_content_length(const char *_text_source);
 static unsigned char *stcp_select_content(unsigned char *response, uint32_t _content_length);
 
+/**
+ * Main debug API on STCP Library
+ * @param _function_name a constant character pointer
+ * @param _debug_type a member of enum on __stcp_debug_type__ (you can find this on header file)
+ * @param _debug_msg a constant character of debug format or debug message followed by debug arguments (printf style)
+ */
 inline void stcp_debug(const char *_function_name, stcp_debug_type _debug_type, const char *_debug_msg, ...){
 	if (stcp_setup_data.stcp_debug_mode || _debug_type){
         struct tm *d_tm = NULL;
@@ -214,6 +223,14 @@ inline void stcp_debug(const char *_function_name, stcp_debug_type _debug_type, 
 }
 
 #ifndef __STCP_DONT_USE_CLIENT__
+/**
+ * Connect to TCP/IP Server with timeout parameter (not visible in header file as default)
+ * @param[in] stcp_socket_f an integer parameter (socket descriptor)
+ * @param[in] addr a pointer of sockaddr structur
+ * @param[in] addrlen an unsigned long integer (size_t) parameter
+ * @param[in] stcp_timeout a pointer of timeval structur (timeout of connect process)
+ * @return 0 if success, 1 if fail
+ */
 static int8_t stcp_connect_with_timeout (
  int stcp_socket_f,
  struct sockaddr * addr,
@@ -265,6 +282,14 @@ static int8_t stcp_connect_with_timeout (
 }
 #endif
 
+/**
+ * Check Address is valid IP or not (not visible in header file as default)
+ * @param[in] stcp_socket_f an integer parameter (socket descriptor)
+ * @param[in] addr a pointer of sockaddr structur
+ * @param[in] addrlen an unsigned long integer (size_t) parameter
+ * @param[in] stcp_timeout a pointer of timeval structur (timeout of connect process)
+ * @return 0 if success, 1 if length is invalid, 2 if number of dots (.) is invalid, 3 if value blocks is invalid
+ */
 static int8_t stcp_check_ip(const char *_ip_address){
     /* check length */
     if (strlen(_ip_address) > 15){
@@ -303,9 +328,14 @@ static int8_t stcp_check_ip(const char *_ip_address){
     ){
         return 0x03;
     }
-    return 0;
+    return 0x00;
 }
 
+/**
+ * Check STCP Library Version
+ * @param[out] _version char pointer that will be store version of STCP Library as string
+ * @return long integer format of version
+ */
 long stcp_get_version(char *_version){
     strcpy(_version, STCP_VER);
     long version_in_long = 0;
@@ -328,10 +358,19 @@ long stcp_get_version(char *_version){
     return version_in_long;
 }
 
+/**
+ * Print Version of STCP Library
+ */
 void stcp_view_version(){
     stcp_debug(__func__, STCP_DEBUG_VERSION, "%s\n", STCP_VER);
 }
 
+/**
+ * Setup common routine of STCP Library
+ * @param[in] _setup_parameter a member of enum on __stcp_setup_parameter__ (you can find this on header file)
+ * @param[in] _value an unsigned integer (32 bit) parameter
+ * @return 0 if success, 1 if parameter or value is invalid, and 2 if setup was locked (8 bit integer value)
+ */
 int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
     if (stcp_setup_data.stcp_lock_setup){
         stcp_debug(__func__, STCP_DEBUG_WARNING, "SETUP LOCKED!!!\n");
@@ -383,6 +422,12 @@ int8_t stcp_setup(stcp_setup_parameter _setup_parameter, uint32_t _value){
 }
 
 #ifdef __STCP_WEBSERVER__
+/**
+ * Setup webserver routine of STCP Library
+ * @param[in] _setup_parameter a member of enum on __stcp_webserver_setup_parameter__ (you can find this on header file)
+ * @param[in] _value an unsigned integer (32 bit) parameter
+ * @return 0 if success, 1 if parameter or value is invalid, and 2 if setup was locked (8 bit integer value)
+ */
 int8_t stcp_webserver_setup(stcp_webserver_setup_parameter _setup_parameter, uint32_t _value){
     if (stcp_setup_data.stcp_lock_setup){
         stcp_debug(__func__, STCP_DEBUG_WARNING, "SETUP LOCKED!!!\n");
@@ -457,15 +502,28 @@ int8_t stcp_webserver_setup(stcp_webserver_setup_parameter _setup_parameter, uin
 }
 #endif
 
+/**
+ * Lock the setup routine of STCP Library
+ */
 void stcp_lock_setup(){
     stcp_setup_data.stcp_lock_setup = 0x01;
 }
 
+/**
+ * Unlock the setup routine of STCP Library
+ */
 void stcp_unlock_setup(){
     stcp_setup_data.stcp_lock_setup = 0x00;
 }
 
 #ifdef __STCP_SSL__
+/**
+ * Add the certificate and/or key for SSL/TLS communication purpose to __stcp_certkey_collection__ list
+ * @param[in] _type a member of enum on __stcp_ssl_certkey_type__ (you can find this on header file)
+ * @param[in] _host a constant character that inform the target host address
+ * @param[in] _certkey a constant character of certificate/key (in path file form or content of certificate/key)
+ * @return 0 if success, 1 if parameter or value is invalid, and 2 or 3 if failed to add certificate/key (8 bit integer value)
+ */
 int8_t stcp_ssl_add_certkey(stcp_ssl_certkey_type _type, const char *_host, const char *_certkey){
     if (_type < STCP_SSL_CERT_TYPE_FILE || _type > STCP_SSL_CACERT_TYPE_TEXT){
         #ifdef __STCP_DEBUG__
@@ -528,6 +586,13 @@ int8_t stcp_ssl_add_certkey(stcp_ssl_certkey_type _type, const char *_host, cons
     return 0x00;
 }
 
+/**
+ * Remove the certificate and/or key for SSL/TLS communication purpose to __stcp_certkey_collection__ list
+ * @param[in] _type a member of enum on __stcp_ssl_certkey_type__ (you can find this on header file)
+ * @param[in] _host a constant character that inform the target host address
+ * @param[in] _certkey a constant character of certificate/key (in path file form or content of certificate/key)
+ * @return 0 if success, 1 if parameter or value is invalid, and 2 or 3 if failed to remove certificate/key (8 bit integer value)
+ */
 int8_t stcp_ssl_remove_certkey(stcp_ssl_certkey_type _type, const char *_host, const char *_certkey){
     if (_type < STCP_SSL_CERT_TYPE_FILE || _type > STCP_SSL_CACERT_TYPE_TEXT){
         #ifdef __STCP_DEBUG__
@@ -590,6 +655,12 @@ int8_t stcp_ssl_remove_certkey(stcp_ssl_certkey_type _type, const char *_host, c
     return 0;
 }
 
+/**
+ * Get certificate for SSL/TLS communication purpose from __stcp_certkey_collection__ list
+ * @param[in] _host a constant character that inform the target host address
+ * @param[in] _type a member of enum on __stcp_ssl_certkey_type__ (you can find this on header file)
+ * @return unsigned char pointer of certificate information if success (dont free this pointer), NULL if failed
+ */
 unsigned char *stcp_ssl_get_cert(const char *_host, stcp_ssl_certkey_type *_type){
     SHLinkCustomData sslcertres;
     char buff[15 + strlen(_host)];
@@ -626,6 +697,12 @@ unsigned char *stcp_ssl_get_cert(const char *_host, stcp_ssl_certkey_type *_type
     return NULL;
 }
 
+/**
+ * Get key for SSL/TLS communication purpose from __stcp_certkey_collection__ list
+ * @param[in] _host a constant character that inform the target host address
+ * @param[in] _type a member of enum on __stcp_ssl_certkey_type__ (you can find this on header file)
+ * @return unsigned char pointer of key information if success (dont free this pointer), NULL if failed
+ */
 unsigned char *stcp_ssl_get_key(const char *_host, stcp_ssl_certkey_type *_type){
     SHLinkCustomData sslcertres;
     char buff[15 + strlen(_host)];
@@ -662,6 +739,12 @@ unsigned char *stcp_ssl_get_key(const char *_host, stcp_ssl_certkey_type *_type)
     return NULL;
 }
 
+/**
+ * Get cacert for SSL/TLS communication purpose from __stcp_certkey_collection__ list
+ * @param[in] _host a constant character that inform the target host address
+ * @param[in] _type a member of enum on __stcp_ssl_certkey_type__ (you can find this on header file)
+ * @return unsigned char pointer of cacert information if success (dont free this pointer), NULL if failed
+ */
 unsigned char *stcp_ssl_get_cacert(const char *_host, stcp_ssl_certkey_type *_type){
     SHLinkCustomData sslcertres;
     char buff[15 + strlen(_host)];
@@ -698,6 +781,9 @@ unsigned char *stcp_ssl_get_cacert(const char *_host, stcp_ssl_certkey_type *_ty
     return NULL;
 }
 
+/**
+ * clear and free __stcp_certkey_collection__ list
+ */
 void stcp_ssl_clean_certkey_collection(){
     shilink_free(&stcp_certkey_collection);
     stcp_certkey_collection = NULL;
@@ -705,7 +791,12 @@ void stcp_ssl_clean_certkey_collection(){
 #endif
 
 #ifndef __STCP_DONT_USE_CLIENT__
-int8_t stcp_set_download_file_name(char* _file_name){
+/**
+ * set default file name of downloaded file from __stcp_http_request__ function
+ * @param[in] _file_name a constant char that inform the file name
+ * @return 0 if success, 1 if length of file name is invalid (8 bit integer value)
+ */
+int8_t stcp_set_download_file_name(const char* _file_name){
     if (strlen(_file_name) > STCP_MAX_LENGTH_FILE_NAME){
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, STCP_DEBUG_WARNING, "file name to long. max:%d character\n", STCP_MAX_LENGTH_FILE_NAME);
@@ -717,6 +808,12 @@ int8_t stcp_set_download_file_name(char* _file_name){
 }
 #endif
 
+/**
+ * Initialize TCP/IP Server for single accept routines and one client only
+ * @param[in] ADDRESS a constant character that inform the server address
+ * @param[in] PORT an unsigned short parameter that inform the server port
+ * @return stcpSock (__socket_f__ (member of stcpSock) > 0 if success)
+ */
 stcpSock stcp_server_init(const char *ADDRESS, uint16_t PORT){
     stcpSock init_data;
     init_data.socket_f = 0;
@@ -799,6 +896,13 @@ stcpSock stcp_server_init(const char *ADDRESS, uint16_t PORT){
 }
 
 #ifdef __STCP_WEBSERVER__
+/**
+ * Initialize STCP Webserver Standard variable/parameters (allocate memmory and set default value of parameters)
+ * @param[in] _stcpWI a pointer of __stcpWInfo__ (struct stcp_webserver_info)
+ * @param[in] _stcpWH a pointer of __stcpHead__ (struct stcp_webserver_header)
+ * @param[in] _stcpWList a pointer of __stcpWList__ (SHLink)
+ * @return 0 if success or 1 if failed to allocate memmory (8 bit integer value)
+ */
 int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList *_stcpWList){
     stcpWInfo stcpWI;
     stcpWHead stcpWH;
@@ -815,7 +919,7 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
         #ifdef __STCP_DEBUG__
         stcp_debug(__func__, STCP_DEBUG_ERROR, "failed to allocate server_header memory\n");
         #endif
-        return -1;
+        return 0x01;
     }
     stcpWI.rcv_header = (unsigned char *) malloc(8*sizeof(unsigned char));
     if (stcpWI.rcv_header == NULL){
@@ -880,6 +984,11 @@ int8_t stcp_http_webserver_init(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWLis
         return 0x01;
 }
 
+/**
+ * Set value of STCP Webserver Standard variable/parameters to default value
+ * @param[in] _stcpWI a pointer of __stcpWInfo__ (struct stcp_webserver_info)
+ * @param[in] _stcpWH a pointer of __stcpHead__ (struct stcp_webserver_header)
+ */
 static void stcp_http_webserver_bzero(stcpWInfo *_stcpWI, stcpWHead *_stcpWH){
     _stcpWI->rcv_header = (unsigned char *) realloc(_stcpWI->rcv_header, 8*sizeof(unsigned char));
     _stcpWI->rcv_content = (unsigned char *) realloc(_stcpWI->rcv_content, 8*sizeof(unsigned char));
@@ -901,6 +1010,13 @@ static void stcp_http_webserver_bzero(stcpWInfo *_stcpWI, stcpWHead *_stcpWH){
     _stcpWI->partial_length = 0;
 }
 
+/**
+ * clear and free STCP Webserver Standard variable/parameters allocated memmory
+ * @param[in] _stcpWI a pointer of __stcpWInfo__ (struct stcp_webserver_info)
+ * @param[in] _stcpWH a pointer of __stcpHead__ (struct stcp_webserver_header)
+ * @param[in] _stcpWList a pointer of __stcpWList__ (SHLink)
+ * @return 0 if success or 1 if failed to allocate memmory (8 bit integer value)
+ */
 static void stcp_http_webserver_free(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList *_stcpWList){
     free(_stcpWI->server_header);
     stcp_debug(__func__, STCP_DEBUG_WEBSERVER, "free server header success\n");
@@ -930,6 +1046,15 @@ static void stcp_http_webserver_free(stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stc
     *_stcpWList = NULL;
 }
 
+/**
+ * get segmentation information of received header on STCP Webserver for specific HTTP Header field
+ * @param[in] _source_text an unsigned char pointer of received header
+ * @param[in] _specific_word a constant unsigned character pointer of keyword
+ * @param[out] _pos an unsigned short pointer that will inform the start position of information that have been specified by keyword
+ * @param[out] _size an unsigned short pointer that will inform the size of information that have been specified by keyword
+ * @param[in] _end_code a constant unsigned character that inform the stop byte of the information (in HTTP, the suitable value for this field is __CR__)
+ * @param[in] _mode 8 bit integer parameter for inform the function that _source_text parameter need to be lower case or not (set this field to 0 for disable lowercase options)
+ */
 static void stcp_http_webserver_header_segment(
  unsigned char *_source_text,
  const unsigned char *_specific_word,
@@ -965,6 +1090,12 @@ static void stcp_http_webserver_header_segment(
     return;
 }
 
+/**
+ * print segmentation information of received header on STCP Webserver for specific HTTP Header field that has been processed on stcp_http_webserver_header_segment function
+ * @param[in] _header a constant unsigned character pointer of received header
+ * @param[in] _segmen_data a constant stcp_subhead_var structure that inform the position and size of information
+ * @param[in] _description a constant character pointer of debug descriptions (additional information)
+ */
 static inline void stcp_http_webserver_print_segment(
  const unsigned char *_header,
  const stcpSHead _segmen_data,
@@ -981,6 +1112,11 @@ static inline void stcp_http_webserver_print_segment(
     }
 }
 
+/**
+ * get partial length information from received header in STCP Webserver
+ * @param[in] _text_source a constant character pointer of received header
+ * @return size of partial length (0 if partial length field not found)
+ */
 static unsigned long long stcp_get_partial_length(const char *_text_source){
     static char buff_info[17];
     static char buff_data[10];
@@ -1009,6 +1145,10 @@ static unsigned long long stcp_get_partial_length(const char *_text_source){
     return 0;
 }
 
+/**
+ * Parsing information of received header on STCP Webserver to segmentation data form in _stcpWI parameters
+ * @param[in, out] _stcpWI a pointer of __stcpWInfo__ (struct stcp_webserver_info)
+ */
 void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
     uint16_t idx_char = 0;
     stcp_debug(__func__, STCP_DEBUG_INFO, "HEADER\n%s\n", (char *) _stcpWI->rcv_header);
@@ -1136,6 +1276,15 @@ void stcp_http_webserver_header_parser(stcpWInfo *_stcpWI){
     stcp_debug(__func__, STCP_DEBUG_INFO, "PARTIAL LENGTH: %i\n", _stcpWI->partial_length);
 }
 
+/**
+ * Parsing information of received header on STCP Webserver to segmentation data form in _stcpWI parameters
+ * @param[in, out] _stcpWI a pointer of __stcpWInfo__ (header that have been generated will be stored in server_header, member of struct stcp_webserver_info)
+ * @param[in] _response_header a constant character pointer of response code HTTP Header (example: 200 OK)
+ * @param[in] _content_type a constant character pointer of content-type filed of HTTP Header (example: text/html, or can include another informations like connection separated by CR LF (example: "text/html\r\nconnection:close"))
+ * @param[in] _acception_type _content_type a constant character pointer of Accept field of HTTP Header (example: text/html, or can include another informations like connection separated by CR LF (example: "text/html\r\nconnection:close"))
+ * @param[in] _content_length an unsigned long long integer (64 bytes) parameters that inform the function length of HTTP Response Content
+ * @return 0 if success
+ */
 int8_t stcp_http_webserver_generate_header(
  stcpWInfo *_stcpWI,
  const char *_response_header,
@@ -1203,6 +1352,15 @@ int8_t stcp_http_webserver_generate_header(
     return 0x00;
 }
 
+/**
+ * Generated full response of HTTP Server (Header + content/body)
+ * @param[in, out] _stcpWI a pointer of __stcpWInfo__ (header that have been generated will be stored in server_header, member of struct stcp_webserver_info)
+ * @param[in] _response_header a constant character pointer of response code HTTP Header (example: 200 OK)
+ * @param[in] _content_type a constant character pointer of content-type filed of HTTP Header (example: text/html, or can include another informations like connection separated by CR LF (example: "text/html\r\nconnection:close"))
+ * @param[in] _acception_type _content_type a constant character pointer of Accept field of HTTP Header (example: text/html, or can include another informations like connection separated by CR LF (example: "text/html\r\nconnection:close"))
+ * @param[in] _content_with_malloc an allocated character pointer memmory that inform content/body oh HTTP Server Response (will be free automatically in this function)
+ * @return character pointer that stored response information if success, NULL if failed
+ */
 char *stcp_http_webserver_generate_full_response(
  stcpWInfo *_stcpWI,
  const char *_response_header,
@@ -1235,6 +1393,13 @@ char *stcp_http_webserver_generate_full_response(
     return result;
 }
 
+/**
+ * Add negative respon code on HTTP Server Header on response list
+ * @param[in, out] _stcpWList a pointer of __stcpWList__ (SHLink) that will be store all HTTP Server header
+ * @param[in] _code_param a member of enum on __stcp_webserver_negative_code__ (you can find this on header file)
+ * @param[in] _response_content a constant character pointer that inform the response content of selected negative code
+ * @return 0 if success, 1 if _code_param is wrong, 2 if failed to add response
+ */
 int8_t stcp_http_webserver_add_negative_code_response(
  stcpWList *_stcpWList,
  stcp_webserver_negative_code _code_param,
@@ -1280,6 +1445,14 @@ int8_t stcp_http_webserver_add_negative_code_response(
     return 0x00;
 }
 
+/**
+ * Add text respon content of HTTP Server for specific request type (GET/POST/PATCH/etc) and specific endpoint on response list
+ * @param[in, out] _stcpWList a pointer of __stcpWList__ (SHLink) that will be store all HTTP Server rensponse
+ * @param[in] _end_point a constant character pointer of HTTP endpoint
+ * @param[in] _response_content a constant character pointer that inform the response content of selected endpoint
+ * @param[in] _request_method a constant character pointer of HTTP Request Method (GET/POST/PATCH/etc)
+ * @return 0 if success, 1 if _code_param is wrong
+ */
 int8_t stcp_http_webserver_add_response(
  stcpWList *_stcpWList,
  const char *_end_point,
@@ -1313,6 +1486,14 @@ int8_t stcp_http_webserver_add_response(
     return 0x00;
 }
 
+/**
+ * Add file as respon content of HTTP Server for specific request type (GET/POST/PATCH/etc) and specific endpoint on response list
+ * @param[in, out] _stcpWList a pointer of __stcpWList__ (SHLink) that will be store all HTTP Server rensponse
+ * @param[in] _end_point a constant character pointer of HTTP endpoint
+ * @param[in] _response_file a constant character pointer that inform the response file location
+ * @param[in] _request_method a constant character pointer of HTTP Request Method (GET/POST/PATCH/etc)
+ * @return 0 if success, 1 if _code_param is wrong
+ */
 int8_t stcp_http_webserver_add_response_file(
  stcpWList *_stcpWList,
  const char *_end_point,
@@ -1349,6 +1530,14 @@ int8_t stcp_http_webserver_add_response_file(
     return 0x00;
 }
 
+/**
+ * Add callback function as respon content of HTTP Server for specific request type (GET/POST/PATCH/etc) and specific endpoint on response list
+ * @param[in, out] _stcpWList a pointer of __stcpWList__ (SHLink) that will be store all HTTP Server rensponse
+ * @param[in] _end_point a constant character pointer of HTTP endpoint
+ * @param[in] _response_function a constant void pointer of function (function format example: void *webservice_callback_example(stcpSock _init_data, stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList _stcpWList, int8_t *_retval))
+ * @param[in] _request_method a constant character pointer of HTTP Request Method (GET/POST/PATCH/etc)
+ * @return 0 if success, 1 if _code_param is wrong
+ */
 int8_t stcp_http_webserver_add_response_callback(
  stcpWList *_stcpWList,
  const char *_end_point,
@@ -1386,6 +1575,14 @@ int8_t stcp_http_webserver_add_response_callback(
     return 0x00;
 }
 
+/**
+ * Add callback function as respon content of TCP/IP Server in STCP Webserver for specific request type (GET/POST/PATCH/etc) and specific endpoint on response list
+ * @param[in, out] _stcpWList a pointer of __stcpWList__ (SHLink) that will be store all HTTP Server rensponse
+ * @param[in] _start_bits a constant unsigned character pointer of TCP/IP received data start bits
+ * @param[in] _start_bits_size an unsigned short that inform size of start bits
+ * @param[in] _response_function a constant void pointer of function (function format example: void *webservice_callback_example(stcpSock _init_data, stcpWInfo *_stcpWI, stcpWHead *_stcpWH, stcpWList _stcpWList, int8_t *_retval))
+ * @return 0 if success, 1 if _code_param is wrong
+ */
 int8_t stcp_http_webserver_add_tcp_response_callback(
  stcpWList *_stcpWList,
  const unsigned char *_start_bits,
@@ -1420,6 +1617,13 @@ int8_t stcp_http_webserver_add_tcp_response_callback(
     return 0x00;
 }
 
+/**
+ * Get response from received request of STCP Webserver
+ * @param[in] _stcpWI  a pointer of __stcpWInfo__ (struct stcp_webserver_info) that store all information of received data
+ * @param[in] _stcpWList a pointer of __stcpWList__ (SHLink) that store all of HTTP Server rensponse
+ * @param[out] _respons_code a character pointer that will be store response code of HTTP Server Header (example: 200 OK)
+ * @return unsigned char pointer of response if success, NULL if response not found
+ */
 unsigned char *stcp_http_webserver_select_response(
  stcpWInfo *_stcpWI,
  stcpWList _stcpWList,
@@ -1600,6 +1804,12 @@ unsigned char *stcp_http_webserver_select_response(
     return (unsigned char *) _data.sl_value;
 }
 
+/**
+ * Get response from received request of STCP Webserver (specific for TCP/IP data)
+ * @param[in] _tcp_received  an unsigned char pointer of received data
+ * @param[in] _stcpWList a pointer of __stcpWList__ (SHLink) that store all of HTTP Server rensponse
+ * @return unsigned char pointer of response if success, NULL if response not found
+ */
 unsigned char *stcp_http_webserver_select_tcp_response(unsigned char *_tcp_received, stcpWList _stcpWList){
     stcpWList response_list = _stcpWList;
     while (response_list != NULL){
@@ -1613,6 +1823,12 @@ unsigned char *stcp_http_webserver_select_tcp_response(unsigned char *_tcp_recei
     return NULL;
 }
 
+/**
+ * Set default content-type of STCP Webserver Header
+ * @param[in] _stcpWH a pointer of __stcpHead__ (struct stcp_webserver_header)
+ * @param[in] _content_type a constant char pointer of content-type will be set as default
+ * @return 0 if success
+ */
 int8_t stcp_http_webserver_set_content_type(
  stcpWHead *_stcpWH,
  const char *_content_type
@@ -1622,6 +1838,12 @@ int8_t stcp_http_webserver_set_content_type(
     return 0x00;
 }
 
+/**
+ * Set default Accept field of STCP Webserver Header
+ * @param[in] _stcpWH a pointer of __stcpHead__ (struct stcp_webserver_header)
+ * @param[in] _accept a constant char pointer of Accept field will be set as default
+ * @return 0 if success
+ */
 int8_t stcp_http_webserver_set_accept(
  stcpWHead *_stcpWH,
  const char *_accept
@@ -1631,7 +1853,17 @@ int8_t stcp_http_webserver_set_accept(
     return 0x00;
 }
 
-int8_t stcp_http_webserver_send_file(stcpSock _init_data,
+/**
+ * Send file as response of STCP Webserver (header has been included)
+ * @param[in] _init_data socket informations that stored as stcpSock structure
+ * @param[in] _stcpWI a pointer of __stcpWInfo__ (struct stcp_webserver_info)
+ * @param[in] _stcpWH a pointer of __stcpHead__ (struct stcp_webserver_header)
+ * @param[in] _response_code a constant character pointer of HTTP Server response code (example: 200 OK)
+ * @param[in] _file_name a constant character pointer of file path that will be send as response
+ * @return 0 if success, -1 if failed to generate header, -2 if file not found, -3 if failed to allocate memory as file buffer (8 bit integer value)
+ */
+int8_t stcp_http_webserver_send_file(
+ stcpSock _init_data,
  stcpWInfo *_stcpWI,
  stcpWHead *_stcpWH,
  const char *_response_code,
@@ -1851,6 +2083,15 @@ int8_t stcp_http_webserver_send_file(stcpSock _init_data,
     return closed_flag;
 }
 
+/**
+ * Main Callback Function of STCP Webserver response
+ * @param[in] _init_data socket informations
+ * @param[in] _function function that will be executed by Callback Function
+ * @param[in] _stcpWI a pointer of __stcpWInfo__ (struct stcp_webserver_info)
+ * @param[in] _stcpWH a pointer of __stcpHead__ (struct stcp_webserver_header)
+ * @param[in] _stcpWList a pointer of __stcpWList__ (SHLink)
+ * @return return of function that executed by Callback Function (return pass by *_retval parameter)
+ */
 static int8_t stcp_http_webserver_callback(
  stcpSock _init_data,
  const void *_function (stcpSock, stcpWInfo *, stcpWHead *, stcpWList, int8_t *),
@@ -1863,6 +2104,16 @@ static int8_t stcp_http_webserver_callback(
     return retval;
 }
 
+/**
+ * Start STCP Webserver
+ * @param[in] ADDRESS a constant character pointer that inform the host address (example: 0.0.0.0)
+ * @param[in] PORT an unsigned short that inform server port
+ * @param[in] MAX_CLIENT an unsigned short that inform the maximum client can be accept by server at the same time
+ * @param[in] _stcpWI a pointer of __stcpWInfo__ (struct stcp_webserver_info)
+ * @param[in] _stcpWH a pointer of __stcpHead__ (struct stcp_webserver_header)
+ * @param[in] _stcpWList a pointer of __stcpWList__ (SHLink)
+ * @return some value if webserver terminated
+ */
 int8_t stcp_http_webserver(
  const char *ADDRESS,
  uint16_t PORT,
@@ -2623,6 +2874,9 @@ int8_t stcp_http_webserver(
     return 0x00;
 }
 
+/**
+ * Send stop signal to STCP Webserver (this function will be terminated after stcp_server_state changed to STCP_SERVER_STOPED)
+ */
 void stcp_http_webserver_stop(){
     if (stcp_server_state != STCP_SERVER_RUNING){
         return;
@@ -2636,6 +2890,12 @@ void stcp_http_webserver_stop(){
 #endif
 
 #ifndef __STCP_DONT_USE_CLIENT__
+/**
+ * Initialize TCP/IP client connection until accepted by server
+ * @param[in] ADDRESS a constant character pointer that inform the host address
+ * @param[in] PORT an unsigned short that inform server port
+ * @return stcpSock (__socket_f__ (member of stcpSock) > 0 if success)
+ */
 stcpSock stcp_client_init(
  const char *ADDRESS,
  uint16_t PORT
@@ -2706,6 +2966,12 @@ stcpSock stcp_client_init(
 }
 
 #ifdef __STCP_SSL__
+/**
+ * Initialize SSL/TLS client connection until accepted by server
+ * @param[in] ADDRESS a constant character pointer that inform the host address
+ * @param[in] PORT an unsigned short that inform server port
+ * @return stcpSock (__socket_f__ (member of stcpSock) > 0 if success)
+ */
 stcpSock stcp_ssl_client_init(
  const char *ADDRESS,
  uint16_t PORT
@@ -2865,6 +3131,11 @@ stcpSock stcp_ssl_client_init(
 }
 #endif
 
+/**
+ * get size of input file
+ * @param[in] _file_name a constant character pointer that inform the file path
+ * @return >= 0 if success, -1 if failed to open file
+ */
 long stcp_get_file_size(const char *_file_name){
     #ifdef __STCP_DEBUG__
     stcp_debug(__func__, STCP_DEBUG_INFO, "file name: %s\n", _file_name);
@@ -2898,6 +3169,13 @@ long stcp_get_file_size(const char *_file_name){
     return content_size;
 }
 
+/**
+ * Send file over TCP/IP or SSL/TLS
+ * @param[in] _init_data socket information that stored as stcpSock structure
+ * @param[in] _file_name a constant character pointer that inform the file path
+ * @param[in] _socket_type TCP/IP or SSL (if you want to send file over TCP/IP set this field to 10, but if you want to send file over SSL/TLS set this field to another value)
+ * @return 0 if success, 1 if failed to open file, or 2 if failed to allocate buffer memmory (8 bytes integer value)
+ */
 static int8_t stcp_socket_send_file(
  stcpSock _init_data,
  const char *_file_name,
@@ -3002,17 +3280,36 @@ static int8_t stcp_socket_send_file(
     return 0x00;
 }
 
+/**
+ * Send file over TCP/IP
+ * @param[in] _init_data socket information that stored as stcpSock structure
+ * @param[in] _file_name a constant character pointer that inform the file path
+ * @return 0 if success, 1 if failed to open file, or 2 if failed to allocate buffer memmory (8 bytes integer value)
+ */
 int8_t stcp_send_file(stcpSock _init_data, const char *_file_name){
     return stcp_socket_send_file(_init_data, _file_name, STCP_TCP);
 }
 
 #ifdef __STCP_SSL__
+/**
+ * Send file over SSL/TLS
+ * @param[in] _init_data socket information that stored as stcpSock structure
+ * @param[in] _file_name a constant character pointer that inform the file path
+ * @return 0 if success, 1 if failed to open file, or 2 if failed to allocate buffer memmory (8 bytes integer value)
+ */
 int8_t stcp_ssl_send_file(stcpSock _init_data, const char *_file_name){
     return stcp_socket_send_file(_init_data, _file_name, STCP_SSL);
 }
 #endif
 #endif
 
+/**
+ * Send buffer data over TCP/IP
+ * @param[in] _init_data socket information that stored as stcpSock structure
+ * @param[in] buff a constant unsigned character pointer of data that will be send
+ * @param[in] size_set a long integer (32 bit) parameter of data size that will be send
+ * @return size of data that has been send, -1 if failed to send data (32 bit integer value)
+ */
 int32_t stcp_send_data(stcpSock _init_data, const unsigned char* buff, int32_t size_set){
     int32_t bytes;
     int32_t bytes_aviable = 0;
@@ -3050,6 +3347,13 @@ int32_t stcp_send_data(stcpSock _init_data, const unsigned char* buff, int32_t s
     return bytes;
 }
 
+/**
+ * Receive buffer data over TCP/IP
+ * @param[in] _init_data socket information that stored as stcpSock structure
+ * @param[out] buff an unsigned character pointer of stored variable
+ * @param[in] size_set a long integer (32 bit) parameter of data size that will be send
+ * @return size of data that has been received, -1 if failed to receive data (32 bit integer value)
+ */
 int32_t stcp_recv_data(stcpSock _init_data, unsigned char* buff, int32_t size_set){
     int32_t bytes;
     bytes = (int32_t) read(_init_data.connection_f, buff, size_set*sizeof(char));
@@ -3064,6 +3368,13 @@ int32_t stcp_recv_data(stcpSock _init_data, unsigned char* buff, int32_t size_se
 }
 
 #ifdef __STCP_SSL__
+/**
+ * Send buffer data over SSL/TLS
+ * @param[in] _init_data socket information that stored as stcpSock structure
+ * @param[in] buff a constant unsigned character pointer of data that will be send
+ * @param[in] size_set a long integer (32 bit) parameter of data size that will be send
+ * @return size of data that has been send, -1 if failed to send data (32 bit integer value)
+ */
 int32_t stcp_ssl_send_data(stcpSock _init_data, const unsigned char* buff, int32_t size_set){
     int32_t bytes;
     int32_t bytes_aviable = 0;
@@ -3101,6 +3412,13 @@ int32_t stcp_ssl_send_data(stcpSock _init_data, const unsigned char* buff, int32
     return bytes;
 }
 
+/**
+ * Receive buffer data over SSL/TLS
+ * @param[in] _init_data socket information that stored as stcpSock structure
+ * @param[out] buff an unsigned character pointer of stored variable
+ * @param[in] size_set a long integer (32 bit) parameter of data size that will be send
+ * @return size of data that has been received, -1 if failed to receive data (32 bit integer value)
+ */
 int32_t stcp_ssl_recv_data(stcpSock _init_data, unsigned char* buff, int32_t size_set){
     int32_t bytes;
     bytes = (int32_t) SSL_read(_init_data.ssl_connection_f, buff, size_set*sizeof(char));
@@ -3116,6 +3434,15 @@ int32_t stcp_ssl_recv_data(stcpSock _init_data, unsigned char* buff, int32_t siz
 #endif
 
 #ifndef __STCP_DONT_USE_CLIENT__
+/**
+ * Parsing url input to get some information like protocol (http/https), host, port, and endpoint
+ * @param[in] _url a constant character pointer of url information
+ * @param[out] _protocol an integer (8 bits) pointer of protocol type (http/https)
+ * @param[out] _host a stcpSHead pointer structur that will be store the informations of host position and size in url input
+ * @param[out] _end_point a stcpSHead pointer structur that will be store the informations of endpoint position and size in url input
+ * @param[out] _port an unsigned short pointer of port
+ * @return 0 if success, 1 if failed to allocate buffer memmory, 2 if failed to determine protocol
+ */
 int8_t stcp_url_parser(const char *_url, int8_t *_protocol, stcpSHead *_host, stcpSHead *_end_point, uint16_t *_port){
     if (strncmp(_url, "http://", 7) == 0 || strncmp(_url, "https://", 8) == 0){
         stcpSHead sub_tmp;
@@ -3184,12 +3511,18 @@ int8_t stcp_url_parser(const char *_url, int8_t *_protocol, stcpSHead *_host, st
     }
     else {
         stcp_debug(__func__, STCP_DEBUG_ERROR, "undefined protocol (http/https - select one)\n");
-        return 0x01;
+        return 0x02;
     }
     return 0x00;
 }
 #endif
 
+/**
+ * Create dinamic allocated string memmory with minimum memmory allocation
+ * @param[in] _size_per_allocate an unsigned short of size per allocation
+ * @param[in] _str_format a constant character pointer of string format followed by arguments (printf style)
+ * @return allocated character pointer if success, NULL if failed
+ */
 char *stcp_http_content_generator(unsigned short _size_per_allocate, const char *_str_format, ...){
 	va_list ar;
 	/* var list */
@@ -3321,6 +3654,14 @@ char *stcp_http_content_generator(unsigned short _size_per_allocate, const char 
 	return buff_result;
 }
 
+/**
+ * Append or create dinamic allocated string memmory with minimum memmory allocation (append process will be processed if input buffer is not NULL)
+ * @param[in] _buff_source a character pointer of input buffer
+ * @param[in] _size_per_allocate an unsigned short of size per allocation
+ * @param[in] _append_size an unsigned short of size append size (set this field to zero if argument is not NULL or append size is not constant)
+ * @param[in] _str_format a constant character pointer of string format followed by arguments (printf style)
+ * @return allocated character pointer if success, NULL if failed
+ */
 char *stcp_http_str_append(
  char *_buff_source,
  unsigned short _size_per_allocate,
@@ -3483,6 +3824,13 @@ char *stcp_http_str_append(
 }
 
 #ifndef __STCP_DONT_USE_CLIENT__
+/**
+ * Create new multipart header for HTTP Client Request (style input: general header + multipart/from-data|form_data_1|form_data_2|...|file)
+ * @param[in] _stcp_multipart_header_input a constant character pointer of HTTP Request Header
+ * @param[out] _boundary_output a character pointer of boundary (example: --stcpmboundaryxxxxxxxxxxxx)
+ * @param[out] _length_part an unsigned short pointer of that inform the length of new header that have been produces
+ * @return allocated unsigned character pointer if success, NULL if failed
+ */
 unsigned char *stcp_http_generate_multipart_header(
  const char *_stcp_multipart_header_input,
  char *_boundary_output,
@@ -3716,6 +4064,19 @@ unsigned char *stcp_http_generate_multipart_header(
     return output_header;
 }
 
+/**
+ * Send HTTP Client Request
+ * @param[in] _req_type a constant character pointer of HTTP Request type (GET/POST/PATCH/etc)
+ * @param[in] _url a constant character pointer of URL
+ * @param[in] _header a constant character pointer of additional field of HTTP Client Request Header (set this field to NULL no additional field available)
+ * @param[in] _content a constant character pointer of content/body (set this field to NULL no content/body are available, for example in GET Request)
+ * @param[in] _request_type a member of enum on __stcp_request_type__ (you can find this on header file) that will determine the routine process
+ * @return allocated unsigned character pointer of http webserver response if success
+ * @return NULL if request preparation failed
+ * @return allocated unsigned character pointer "no route to host" if failed to connect
+ * @return allocated unsigned character pointer "bad connection or bad request" if failed to receive content
+ * @return allocated unsigned character pointer "request timeout" if timeout to receive content
+ */
 unsigned char *stcp_http_request(
  const char *_req_type,
  const char *_url,
@@ -4265,6 +4626,10 @@ unsigned char *stcp_http_request(
 }
 #endif
 
+/**
+ * Close and release TCP/IP socket informations
+ * @param[in] init_data __stcpSock__ pointer of socket informations
+ */
 void stcp_close(stcpSock *init_data){
     if(init_data->socket_f == init_data->connection_f){
         if (init_data->socket_f > 0){
@@ -4285,6 +4650,10 @@ void stcp_close(stcpSock *init_data){
 }
 
 #ifdef __STCP_SSL__
+/**
+ * Close and release SSL/TLS socket informations
+ * @param[in] init_data __stcpSock__ pointer of socket informations
+ */
 void stcp_ssl_close(stcpSock *init_data){
     if(init_data->socket_f == init_data->connection_f){
         if (init_data->ssl_connection_f != NULL){
@@ -4315,6 +4684,11 @@ void stcp_ssl_close(stcpSock *init_data){
 }
 #endif
 
+/**
+ * Get content length of HTTP Client data (header + content/body)
+ * @param[in] _text_source a constant character pointer of HTTP Client data (header + content/body)
+ * @return content length
+ */
 static unsigned long stcp_get_content_length(const char *_text_source){
     char *buff_info = NULL;
     buff_info = (char *) strstr(_text_source, "Content-Length: ");
@@ -4336,6 +4710,14 @@ static unsigned long stcp_get_content_length(const char *_text_source){
     return (unsigned long) atol(buff_data);
 }
 
+/**
+ * Get/select content/body from HTTP Client data (header + content/body)
+ * @param[in, out] response an unsigned character pointer of HTTP Client data (header + content/body)
+ * @param[in] _content_length an unsigned long integer (32 bits) of content/body length
+ * @return content/body of HTTP Client if success
+ * @return NULL if _content_length is 0
+ * 
+ */
 static unsigned char *stcp_select_content(
  unsigned char *response,
  uint32_t _content_length
@@ -4362,6 +4744,13 @@ PING PURPOSE
 run_without_root (do on shell) : setcap cap_net_raw+ep executable_file
 */
 #ifdef __STCP_PING__
+/**
+ * Get checksum of ping data
+ * @param[in] b a void pointer of received packet
+ * @param[in] len an integer parameter of packet size
+ * @return checksum CRC32
+ * 
+ */
 static unsigned short stcp_checksum(void *b, int len){
 	unsigned short *buff = (unsigned short *) b;
 	unsigned int sum=0;
@@ -4377,6 +4766,13 @@ static unsigned short stcp_checksum(void *b, int len){
 	return result; 
 } 
 
+/**
+ * Get PING statistics
+ * @param[in] ADDRESS a constant character pointer of host/address
+ * @param[in] NUM_OF_PING an unsigned short integer parameter that inform the number of ping request
+ * @return PING statistics
+ * 
+ */
 struct stcp_ping_summary stcp_ping(const char *ADDRESS, uint16_t NUM_OF_PING){
     stcpSock init_data;
     struct sockaddr_in servaddr;
