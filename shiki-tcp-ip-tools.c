@@ -781,6 +781,32 @@ unsigned char *stcp_ssl_get_cacert(const char *_host, stcp_ssl_certkey_type *_ty
     return NULL;
 }
 
+X509 *stcp_ssl_create_cert_from_text(const unsigned char *_sslCertKey){
+    BIO *tmpBio = NULL;
+    X509 *tmpCertKey = NULL;
+    tmpBio = BIO_new_mem_buf((void *) _sslCertKey, -1);
+    if (tmpBio == NULL){
+        return NULL;
+    }
+    tmpCertKey = PEM_read_bio_X509(tmpBio, NULL, 0, NULL);
+    BIO_set_close(tmpBio, BIO_CLOSE);
+    BIO_free(tmpBio);
+    return tmpCertKey;
+}
+
+RSA *stcp_ssl_create_key_from_text(const unsigned char *_sslCertKey){
+    BIO *tmpBio = NULL;
+    RSA *tmpCertKey = NULL;
+    tmpBio = BIO_new_mem_buf((void *) _sslCertKey, -1);
+    if (tmpBio == NULL){
+        return NULL;
+    }
+    tmpCertKey = PEM_read_bio_RSAPrivateKey(tmpBio, NULL, 0, NULL);
+    BIO_set_close(tmpBio, BIO_CLOSE);
+    BIO_free(tmpBio);
+    return tmpCertKey;
+}
+
 /**
  * clear and free __stcp_certkey_collection__ list
  */
@@ -2268,7 +2294,7 @@ int8_t stcp_http_webserver(
             if (ssl_ctx == NULL){
                 stcp_debug(__func__, STCP_DEBUG_WARNING, "unable to create new SSL context structure\n");
             }
-            #if !defined __XTENSA__ && !defined ESP_PLATFORM
+            //#if !defined __XTENSA__ && !defined ESP_PLATFORM
             unsigned char* sslCertKey = NULL;
             stcp_ssl_certkey_type certkeyType = STCP_SSL_CACERT_TYPE_FILE;
             sslCertKey = stcp_ssl_get_cert(ADDRESS, &certkeyType);
@@ -2280,9 +2306,13 @@ int8_t stcp_http_webserver(
                     }
                 }
                 else {
-                    if (SSL_CTX_use_certificate_ASN1(ssl_ctx, strlen((const char *) sslCertKey), sslCertKey) <= 0)
+                    X509 *tmpCertKey = stcp_ssl_create_cert_from_text(sslCertKey);
+                    if (SSL_CTX_use_certificate(ssl_ctx, tmpCertKey) <= 0)
                     {
                         stcp_debug(__func__, STCP_DEBUG_WARNING, "failed to add certificate\n");
+                    }
+                    if (tmpCertKey != NULL){
+                        X509_free(tmpCertKey);
                     }
                 }
             }
@@ -2296,9 +2326,13 @@ int8_t stcp_http_webserver(
                     }
                 }
                 else {
-                    if (SSL_CTX_use_PrivateKey_ASN1(0, ssl_ctx, sslCertKey, strlen((const char *) sslCertKey)) <= 0)
+                    RSA *tmpCertKey = stcp_ssl_create_key_from_text(sslCertKey);
+                    if (SSL_CTX_use_RSAPrivateKey(ssl_ctx, tmpCertKey) <= 0)
                     {
                         stcp_debug(__func__, STCP_DEBUG_WARNING, "failed to add privat key\n");
+                    }
+                    if (tmpCertKey != NULL){
+                        RSA_free(tmpCertKey);
                     }
                 }
                 if (!SSL_CTX_check_private_key(ssl_ctx))
@@ -2332,7 +2366,7 @@ int8_t stcp_http_webserver(
             else {
                 SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
             }
-            #endif
+            //#endif
         #endif
         stcp_debug(__func__, STCP_DEBUG_WEBSERVER, "Server https listening..\n");
     }
@@ -2839,7 +2873,13 @@ int8_t stcp_http_webserver(
                     if (_stcpWI->comm_protocol){
                         #ifdef __STCP_SSL__
                             if (init_data.ssl_connection_f != NULL){
-                                SSL_shutdown(init_data.ssl_connection_f);
+                                if (!SSL_get_shutdown(init_data.ssl_connection_f)){
+                                    stcp_debug(__func__, STCP_DEBUG_WEBSERVER, "shutdown SSL\n");
+                                    SSL_shutdown(init_data.ssl_connection_f);
+                                }
+                                else {
+                                    stcp_debug(__func__, STCP_DEBUG_WEBSERVER, "release without shutdown the SSL\n");
+                                }
                                 SSL_free(init_data.ssl_connection_f);
                                 init_data.ssl_connection_f = NULL;
                             }
