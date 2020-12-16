@@ -213,6 +213,12 @@ int8_t stcp_http_webserver_add_response_file(
  const char *_response_file,
  const char *_request_method
 );
+int8_t stcp_http_webserver_add_response_directory(
+ stcpWList *_stcpWList,
+ const char *_base_end_point,
+ const char *_response_directory,
+ const char *_request_method
+);
 int8_t stcp_http_webserver_add_response_callback(
  stcpWList *_stcpWList,
  const char *_end_point,
