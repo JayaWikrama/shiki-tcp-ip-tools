@@ -219,6 +219,13 @@ int8_t stcp_http_webserver_add_response_directory(
  const char *_response_directory,
  const char *_request_method
 );
+int8_t stcp_http_webserver_add_web_asset_directory(
+ stcpWList *_stcpWList,
+ const char *_base_end_point,
+ const char *_web_asset_location,
+ const char *_str_remove,
+ const char *_request_method
+);
 int8_t stcp_http_webserver_add_response_callback(
  stcpWList *_stcpWList,
  const char *_end_point,

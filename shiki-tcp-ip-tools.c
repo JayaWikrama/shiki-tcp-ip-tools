@@ -1713,6 +1713,79 @@ int8_t stcp_http_webserver_add_response_directory(
 }
 
 /**
+ * Add web asset directory and all of its content as respon content of HTTP Server for specific request type (GET/POST/PATCH/etc) and specific endpoint on response list
+ * @param[in, out] _stcpWList a pointer of __stcpWList__ (SHLink) that will be store all HTTP Server rensponse
+ * @param[in] _base_end_point a constant character pointer of HTTP base endpoint
+ * @param[in] _web_asset_location a constant character pointer that inform the response web asset directory location
+ * @param[in] _str_remove a constant character pointer that inform the exclution string
+ * @param[in] _request_method a constant character pointer of HTTP Request Method (GET/POST/PATCH/etc)
+ * @return 0 if success, 1 if _code_param is wrong
+ */
+int8_t stcp_http_webserver_add_web_asset_directory(
+ stcpWList *_stcpWList,
+ const char *_base_end_point,
+ const char *_web_asset_location,
+ const char *_str_remove,
+ const char *_request_method
+){
+    DIR *directory = NULL;
+    struct dirent *enDirTmp = NULL;
+    struct dirent enDir;
+
+    directory = opendir(_web_asset_location);
+    if (directory == NULL){
+        #ifdef __STCP_DEBUG__
+        stcp_debug(__func__, STCP_DEBUG_ERROR, "failed to add response directory (0) \"%s\"\n", _response_directory);
+        #endif
+        return 0x01;
+    }
+    do {
+        enDirTmp = readdir(directory);
+        if (enDirTmp == NULL){
+            break;
+        }
+        memcpy(&enDir, enDirTmp, sizeof(enDir));
+        if (enDir.d_type == DT_DIR){
+            if (enDir.d_name[0] != '.'){
+                char dnameTmp[strlen(enDir.d_name) + strlen(_web_asset_location) + 2];
+                memset(dnameTmp, 0x00, sizeof(dnameTmp));
+                sprintf(dnameTmp, "%s/%s", _web_asset_location, enDir.d_name);
+                stcp_http_webserver_add_web_asset_directory(
+                 _stcpWList,
+                 _base_end_point,
+                 dnameTmp,
+                 _str_remove,
+                 _request_method
+                );
+            }
+        }
+        else if (enDir.d_type == DT_REG){
+            char fnameTmp[strlen(enDir.d_name) + strlen(_web_asset_location) + 2];
+            char endPointTmp[strlen(enDir.d_name) + strlen(_web_asset_location) + strlen(_base_end_point) + 3];
+            memset(fnameTmp, 0x00, sizeof(fnameTmp));
+            sprintf(fnameTmp, "%s/%s", _web_asset_location, enDir.d_name);
+            memset(endPointTmp, 0x00, sizeof(endPointTmp));
+            if (_str_remove[strlen(_str_remove) - 1] == '/'){
+                sprintf(endPointTmp, "%s/%s/%s", _base_end_point, _web_asset_location + strlen(_str_remove), enDir.d_name);
+            }
+            else {
+                sprintf(endPointTmp, "%s/%s/%s", _base_end_point, _web_asset_location + strlen(_str_remove) + 1, enDir.d_name);
+            }
+            stcp_http_webserver_add_response_file(
+             _stcpWList,
+             endPointTmp,
+             fnameTmp,
+             _request_method
+            );
+        }
+    } while (1);
+
+    closedir(directory);
+    directory = NULL;
+    return 0;    
+}
+
+/**
  * Add callback function as respon content of HTTP Server for specific request type (GET/POST/PATCH/etc) and specific endpoint on response list
  * @param[in, out] _stcpWList a pointer of __stcpWList__ (SHLink) that will be store all HTTP Server rensponse
  * @param[in] _end_point a constant character pointer of HTTP endpoint
